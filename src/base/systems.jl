@@ -3,8 +3,9 @@
 """
 
 abstract type System end
+abstract type Hubbard <: System end
 
-struct BilayerHubbard <: System
+struct BilayerHubbard <: Hubbard
     ### Model Constants ###
     Ns::Tuple{Int64, Int64}
     V::Int64
@@ -68,13 +69,15 @@ struct BilayerHubbard <: System
     end
 end
 
-struct IonicHubbard <: System
+struct IonicHubbard <: Hubbard
     ### Model Constants ###
     Ns::Tuple{Int64, Int64}
     V::Int64
     N::Tuple{Int64, Int64}
     t::Float64
     U::Float64
+    # staggered potential
+    # one can restore the regular Hubbard model by setting this term to 0
     Δ::Float64
 
     ### Temperature and Chemical Potential ###
