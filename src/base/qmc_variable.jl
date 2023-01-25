@@ -20,40 +20,22 @@ struct QMC
     K::Int64                    # number of groups of matrices
     K_interval::Vector{Int64}
     update_interval::Int64      # number of steps after which a calibration is required
-end
 
-function QMC(
-    system::System, 
-    nwarmups::Int64, nsamples::Int64, measure_interval::Int64, 
-    stab_interval::Int64, update_interval::Int64
-)
-    # number of clusters
-    system.L % stab_interval == 0 ? K = div(system.L, stab_interval) : K = div(system.L, stab_interval) + 1
-    # group the rest of the matrices as the last cluster
-    Le = mod(system.L, stab_interval)
-    K_interval = [stab_interval for _ in 1 : K]
-    Le == 0 || (K_interval[end] = Le)
-
-    return new(
-        nwarmups, nsamples, measure_interval,
-        stab_interval, K, K_interval, update_interval
+    function QMC(
+        system::System, 
+        nwarmups::Int64, nsamples::Int64, measure_interval::Int64, 
+        stab_interval::Int64, update_interval::Int64
     )
-end
-
-function QMC(
-    system::ExtendedSystem, 
-    nwarmups::Int64, nsamples::Int64, measure_interval::Int64, 
-    stab_interval::Int64, update_interval::Int64
-)
-    # number of clusters
-    system.L % stab_interval == 0 ? K = div(system.L, stab_interval) : K = div(system.L, stab_interval) + 1
-    # group the rest of the matrices as the last cluster
-    Le = mod(system.L, stab_interval)
-    K_interval = [stab_interval for _ in 1 : K]
-    Le == 0 || (K_interval[end] = Le)
-
-    return new(
-        nwarmups, nsamples, measure_interval,
-        stab_interval, K, K_interval, update_interval
-    )
+        # number of clusters
+        system.L % stab_interval == 0 ? K = div(system.L, stab_interval) : K = div(system.L, stab_interval) + 1
+        # group the rest of the matrices as the last cluster
+        Le = mod(system.L, stab_interval)
+        K_interval = [stab_interval for _ in 1 : K]
+        Le == 0 || (K_interval[end] = Le)
+    
+        return new(
+            nwarmups, nsamples, measure_interval,
+            stab_interval, K, K_interval, update_interval
+        )
+    end
 end
