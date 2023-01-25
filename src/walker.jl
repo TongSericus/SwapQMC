@@ -60,7 +60,7 @@ function HubbardGCWalker(
     k = qmc.stab_interval
 
     weight = zeros(Float64, 2)
-    sign = zeros(T, 2)
+    sgn = zeros(T, 2)
 
     G = [Matrix{T}(1.0I, Ns, Ns), Matrix{T}(1.0I, Ns, Ns)]
     ws = ldr_workspace(G[1])
@@ -70,13 +70,31 @@ function HubbardGCWalker(
     Bl = Cluster(Ns, 2 * k)
 
     expβμ = exp(system.β * μ)
-    weight[1], sign[1] = inv_IpμA!(G[1], F[1], expβμ, ws)
-    weight[2], sign[2] = inv_IpμA!(G[2], F[2], expβμ, ws)
+    weight[1], sgn[1] = inv_IpμA!(G[1], F[1], expβμ, ws)
+    weight[2], sgn[2] = inv_IpμA!(G[2], F[2], expβμ, ws)
 
     α = system.auxfield[1, 1] / system.auxfield[2, 1]
     α = [α - 1 1/α - 1; 1/α - 1 α - 1]
 
-    return HubbardGCWalker(α, -weight, sign, Ref(expβμ), auxfield, F, ws, G, FC, Fτ, Bl, Bc)
+    return HubbardGCWalker(α, -weight, sgn, Ref(expβμ), auxfield, F, ws, G, FC, Fτ, Bl, Bc)
+end
+
+function update!(walker::HubbardGCWalker)
+    """
+        Update the Green's function, weight of the walker
+    """
+    weight = walker.weight
+    sgn = walker.sign
+    expβμ = walker.expβμ[]
+    G = walker.G
+    F = walker.F
+
+    weight[1], sgn[1] = inv_IpμA!(G[1], F[1], expβμ, walker.ws)
+    weight[2], sgn[2] = inv_IpμA!(G[2], F[2], expβμ, walker.ws)
+
+    @. weight *= -1
+
+    return nothing
 end
 
 ### Swap walker definitions ###
@@ -125,11 +143,44 @@ function HubbardGCSwapper(
     copyto!(C[2], L)
     lmul!(L, F[2], ws)
 
-    # compute Green's function
+    # compute Green's function and weight
     weight = zeros(Float64, 2)
     sign = zeros(T, 2)
     weight[1], sign[1] = inv_IpA!(G[1], F[1], ws)
     weight[2], sign[2] = inv_IpA!(G[2], F[2], ws)
+    @. weight *= -1
 
-    return HubbardGCSwapper(-weight, sign, F, ws, G, B, C, L, R)
+    return HubbardGCSwapper(weight, sign, F, ws, G, B, C, L, R)
+end
+
+function fill!(swapper::HubbardGCSwapper, walker₁::HubbardGCWalker, walker₂::HubbardGCWalker)
+    """
+        Fill a (potentially empty) swapper with two walkers
+    """
+    expβμ = walker₁.expβμ[]
+
+    weight = swapper.weight
+    sign = swapper.sign
+    F = swapper.F
+    C = swapper.C
+    L = swppaer.L
+    ws = swapper.ws
+
+    # expand F in the spin-up part and then merge
+    expand!(F[1], walker₁.F[1], 1, expβμ = expβμ)
+    expand!(L, walker₂.F[1], 2, expβμ = expβμ)
+    copyto!(C[1], L)
+    lmul!(L, F[1], ws)
+    # expand F in the spin-down part and then merge
+    expand!(F[2], walker₁.F[2], 1, expβμ = expβμ)
+    expand!(L, walker₂.F[2], 2, expβμ = expβμ)
+    copyto!(C[2], L)
+    lmul!(L, F[2], ws)
+
+    # compute Green's function and weight
+    weight[1], sign[1] = inv_IpA!(G[1], F[1], ws)
+    weight[2], sign[2] = inv_IpA!(G[2], F[2], ws)
+    @. weight *= -1
+
+    return nothing
 end
