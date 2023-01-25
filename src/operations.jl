@@ -10,6 +10,9 @@ function run_full_propagation(
     B = [Matrix{Float64}(I, V, V), Matrix{Float64}(I, V, V)],
     FC = Cluster(B = ldrs(B[1], 2 * K))
 ) where {T, E}
+    """
+        Propagate the full space-time lattice
+    """
     MP = Cluster(V, 2 * K)
 
     F = ldrs(B[1], 2)
@@ -42,7 +45,7 @@ function run_full_propagation_reverse(
     FC = Cluster(B = ldrs(B[1], 2 * K))
 ) where {T, E}
     """
-    Propagate the full space-time lattice in the reverse order
+        Propagate the full space-time lattice in the reverse order
     """
     MP = Cluster(V, 2 * K)
 
@@ -73,7 +76,7 @@ function run_full_propagation_reverse(
     FC = Cluster(B = ldrs(B[1], 2 * K))
 ) where {C, T, E}
     """
-    Propagate the full space-time lattice in the reverse order
+        Propagate the full space-time lattice in the reverse order
     """
     K = div(length(MP.B), 2)
 
