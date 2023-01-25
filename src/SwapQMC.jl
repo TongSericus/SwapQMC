@@ -17,6 +17,6 @@ module SwapQMC
     include("./operations.jl")
     include("./propagation.jl")
 
-    export EtgData, EtgMeasurement, measure_EE
+    export EtgData, EtgMeasurement, measure_EE, measure_EE!
     include("./measurements.jl")
 end
