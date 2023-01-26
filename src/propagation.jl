@@ -98,11 +98,8 @@ function sweep!(
     """
     K = qmc.K
     
-    weight = swapper.weight
-    sgn = swapper.sign
     ws = swapper.ws
     F = swapper.F
-    G = swapper.G
     # temporal factorizations
     C⁺ = swapper.C
     L⁺ = swapper.L
@@ -134,13 +131,11 @@ function sweep!(
         rmul!(F[2], L⁺, ws)
         
         # G needs to be periodically recomputed
-        weight[1], sgn[1] = inv_IpA!(G[1], F[1], ws)
-        weight[2], sgn[2] = inv_IpA!(G[2], F[2], ws)
-        @. weight *= -1
+        update!(swapper)
     end
 
     # At the end of the simulation, recompute all partial factorizations
-    run_full_propagation_reverse(walker.Bc, extsys.system, walker.ws, FC = walker.FC)
+    run_full_propagation_reverse(walker.Bc, walker.ws, FC = walker.FC)
 
     # save Fτs
     copyto!.(walker.F, tmpR)
@@ -231,7 +226,7 @@ function sweep!(system::Hubbard, qmc::QMC, walker::HubbardGCWalker)
     end
 
     # At the end of the simulation, recompute all partial factorizations
-    run_full_propagation_reverse(walker.Bc, system, walker.ws, FC = walker.FC)
+    run_full_propagation_reverse(walker.Bc, walker.ws, FC = walker.FC)
 
     # save Fτs
     copyto!.(walker.F, tmpR)

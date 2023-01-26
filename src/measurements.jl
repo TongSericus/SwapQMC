@@ -54,7 +54,8 @@ end
 function measure_EE!(
     etgm::EtgMeasurement,
     etgdata::EtgData, extsys::ExtendedSystem, 
-    walker₁::HubbardGCWalker, walker₂::HubbardGCWalker
+    walker₁::HubbardGCWalker, walker₂::HubbardGCWalker,
+    swapper::HubbardGCSwapper
 )
     """
         Measure the transition probability and particle number distribution in Z_{A, 2} space
@@ -105,8 +106,8 @@ function measure_EE!(
     @views copyto!(Pn2₋, etgdata.P[:, end])
 
     # compute the transition probability
-    p = sum(walker1.weight) + sum(walker2.weight) - sum(swapper.weight)
-    p_sign = prod(walker1.sign) * prod(walker2.sign) * prod(swapper.sign)
+    p = sum(walker₁.weight) + sum(walker₂.weight) - sum(swapper.weight)
+    p_sign = prod(walker₁.sign) * prod(walker₂.sign) * prod(swapper.sign)
     etgm.p[] = min(1, p_sign * exp(p))
 
     return nothing
@@ -121,8 +122,8 @@ function measure_EE(
     """
 
     fill!(swapper, walker₁, walker₂)
-    p = sum(swapper.weight) - sum(walker1.weight) - sum(walker2.weight)
-    p_sign = prod(walker1.sign) * prod(walker2.sign) * prod(swapper.sign)
+    p = sum(swapper.weight) - sum(walker₁.weight) - sum(walker₂.weight)
+    p_sign = prod(walker₁.sign) * prod(walker₂.sign) * prod(swapper.sign)
 
     return min(1, p_sign * exp(p))
 end

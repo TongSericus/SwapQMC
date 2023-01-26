@@ -71,9 +71,10 @@ function run_full_propagation_reverse(
 end
 
 function run_full_propagation_reverse(
-    MP::Cluster{C}, system::System, ws::LDRWorkspace{T,E};
-    F = ldrs(Matrix(1.0I, system.V, system.V), 2),
-    FC = Cluster(B = ldrs(B[1], 2 * K))
+    MP::Cluster{C}, ws::LDRWorkspace{T,E};
+    V = size(MP.B[1]),
+    F = ldrs(Matrix(1.0I, V), 2),
+    FC = Cluster(B = ldrs(Matrix(1.0I, V), 2 * K))
 ) where {C, T, E}
     """
         Propagate the full space-time lattice in the reverse order
