@@ -153,17 +153,33 @@ function HubbardGCSwapper(
     return HubbardGCSwapper(weight, sign, F, ws, G, B, C, L, R)
 end
 
+function update!(swapper::HubbardGCSwapper)
+    """
+        Update the Green's function, weight of the walker
+    """
+    weight = swapper.weight
+    sign = swapper.sign
+    G = swapper.G
+
+    F = swapper.F
+
+    weight[1], sign[1] = inv_IpA!(G[1], F[1], swapper.ws)
+    weight[2], sign[2] = inv_IpA!(G[2], F[2], swapper.ws)
+
+    @. weight *= -1
+
+    return nothing
+end
+
 function fill!(swapper::HubbardGCSwapper, walker₁::HubbardGCWalker, walker₂::HubbardGCWalker)
     """
         Fill a (potentially empty) swapper with two walkers
     """
     expβμ = walker₁.expβμ[]
 
-    weight = swapper.weight
-    sign = swapper.sign
     F = swapper.F
     C = swapper.C
-    L = swppaer.L
+    L = swapper.L
     ws = swapper.ws
 
     # expand F in the spin-up part and then merge
@@ -178,9 +194,7 @@ function fill!(swapper::HubbardGCSwapper, walker₁::HubbardGCWalker, walker₂:
     lmul!(L, F[2], ws)
 
     # compute Green's function and weight
-    weight[1], sign[1] = inv_IpA!(G[1], F[1], ws)
-    weight[2], sign[2] = inv_IpA!(G[2], F[2], ws)
-    @. weight *= -1
+    update!(swapper)
 
     return nothing
 end
