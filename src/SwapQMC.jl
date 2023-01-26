@@ -5,7 +5,8 @@ module SwapQMC
     import StableLinearAlgebra as Slinalg
     import StableLinearAlgebra: mul!, lmul!, rmul!, rdiv!
 
-    export BilayerHubbard, IonicHubbard, ExtendedSystem, QMC
+    export System, ExtendedSystem, QMC
+    export Hubbard, BilayerHubbard, IonicHubbard
     include("./base/systems.jl")
     include("./base/qmc_variable.jl")
     include("./base/linalg_RDM.jl")
@@ -16,6 +17,9 @@ module SwapQMC
     include("./walker.jl")
     include("./operations.jl")
     include("./propagation.jl")
+
+    export MuTuner, dynamical_tuning
+    include("./dynamical_tuning.jl")
 
     export EtgData, EtgMeasurement, measure_EE, measure_EE!
     include("./measurements.jl")
