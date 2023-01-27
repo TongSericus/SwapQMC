@@ -142,9 +142,9 @@ end
     Define the extended systems for swap algorithm
 """
 
-struct ExtendedSystem
+struct ExtendedSystem{T}
     ### Original System ###
-    system::System
+    system::T
 
     ### Entanglement-related parameters ###
     Aidx::Vector{Int64}         # entangled region
@@ -160,7 +160,7 @@ struct ExtendedSystem
         LB = length(Bidx)
         Vext = LA + 2 * LB
 
-        return new(
+        return new{typeof(sys)}(
             sys,
             Aidx, LA, Bidx, LB, Vext
         )

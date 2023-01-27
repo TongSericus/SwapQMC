@@ -48,7 +48,7 @@ struct HubbardGCWalker{Ts<:Number, T<:Number, Fact<:Factorization{T}, E, C} <: G
 end
 
 function HubbardGCWalker(
-    system::System, qmc::QMC;
+    system::Hubbard, qmc::QMC;
     auxfield::Matrix{Int} = 2 * (rand(system.V, system.L) .< 0.5) .- 1, 
     μ::Float64 = system.μ,
     T::DataType = Float64
