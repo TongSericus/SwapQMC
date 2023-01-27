@@ -50,17 +50,6 @@ function run_swap_gce(
             @views copyto!(Pn2_dn[:, i], real(etgm.Pn2₋))
         end
 
-        a = varinfo()
-        b = varinfo(SwapQMC)
-
-        #filename = "denom_tz$(system.t′)_U$(system.U)_beta$(system.β)_$(file_id).jld"
-        #jldopen("../data/GCE_BiHub_Lx$(system.Ns[1])Ly$(system.Ns[2])_LA$(extsys.LA)/$filename", "w") do file
-        #    write(file, "sgn", sgn)
-        #    write(file, "p", p)
-        #    write(file, "Pn2_up", Pn2_up)
-        #    write(file, "Pn2_dn", Pn2_dn)
-        #end
-
         filename = "denom_tz$(system.t′)_U$(system.U)_beta$(system.β)_$(file_id).jld"
         jldopen("../data/GCE_BiHub_Lx$(system.Ns[1])Ly$(system.Ns[2])_LA$(extsys.LA)/$filename", "w") do file
             write(file, "sgn", sgn)
