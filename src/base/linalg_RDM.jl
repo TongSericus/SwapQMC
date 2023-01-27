@@ -146,16 +146,16 @@ function expand!(U::AbstractMatrix{T}, V::AbstractMatrix{T}, LA::Int, LB::Int, r
     L = LA + LB
 
     if ridx == 1
-        @views U[1:L, 1:L] .= V[1:L, 1:L]
+        @views copyto!(U[1:L, 1:L], V[1:L, 1:L])
         U_sub = @view U[L+1:end, L+1:end]
         U_sub[diagind(U_sub)] .= 1
 
     elseif ridx == 2
-        @views U[1:LA, 1:LA] .= V[1:LA, 1:LA]
-        @views U[L+1:end, L+1:end] .= V[LA+1:end, LA+1:end]
+        @views copyto!(U[1:LA, 1:LA], V[1:LA, 1:LA])
+        @views copyto!(U[L+1:end, L+1:end], V[LA+1:end, LA+1:end])
 
-        @views U[1:LA, L+1:end] .= V[1:LA, LA+1:end]
-        @views U[L+1:end, 1:LA] .= V[LA+1:end, 1:LA]
+        @views copyto!(U[1:LA, L+1:end], V[1:LA, LA+1:end])
+        @views copyto!(U[L+1:end, 1:LA], V[LA+1:end, 1:LA])
 
         U_sub = @view U[LA+1:L, LA+1:L]
         U_sub[diagind(U_sub)] .= 1
@@ -198,19 +198,24 @@ function expand!(U::LDR{T,E}, V::LDR{T,E}, ridx::Int; expβμ::Float64 = 1.0) wh
     reset!(U)
 
     # fill d
-    dᵤ[vcat(1:lᵥ, lᵥ+1+δL:Lu)] .= dᵥ
+    dᵥidx = vcat(1:lᵥ, lᵥ+1+δL:Lu)
+    @views copyto!(dᵤ[dᵥidx], dᵥ)
 
     # fill L
-    @views Lᵤ[1:idx, 1:lᵥ] .= Lᵥ[1:idx, 1:lᵥ]
-    @views Lᵤ[1:idx, lᵥ+1+δL:Lu] .= Lᵥ[1:idx, lᵥ+1:Lv]
-    idx == Lv || (@views Lᵤ[idx+δL+1:Lu, 1:lᵥ] .= Lᵥ[idx+1:Lv, 1:lᵥ]; @views Lᵤ[idx+δL+1:Lu, lᵥ+1+δL:Lu] .= Lᵥ[idx+1:Lv, lᵥ+1:Lv])
+    @views copyto!(Lᵤ[1:idx, 1:lᵥ], Lᵥ[1:idx, 1:lᵥ])
+    @views copyto!(Lᵤ[1:idx, lᵥ+1+δL:Lu], Lᵥ[1:idx, lᵥ+1:Lv])
+    idx == Lv || (@views copyto!(Lᵤ[idx+δL+1:Lu, 1:lᵥ], Lᵥ[idx+1:Lv, 1:lᵥ]); 
+                  @views copyto!(Lᵤ[idx+δL+1:Lu, lᵥ+1+δL:Lu], Lᵥ[idx+1:Lv, lᵥ+1:Lv])
+                )
     Lᵤ_sub = @view Lᵤ[idx+1 : idx+δL, lᵥ+1 : lᵥ+δL]
     Lᵤ_sub[diagind(Lᵤ_sub)] .= 1
 
     # fill R
-    @views Rᵤ[1:lᵥ, 1:idx] .= Rᵥ[1:lᵥ, 1:idx]
-    @views Rᵤ[lᵥ+1+δL:Lu, 1:idx] .= Rᵥ[lᵥ+1:Lv, 1:idx]
-    idx == Lv || (@views Rᵤ[1:lᵥ, idx+δL+1:Lu] .= Rᵥ[1:lᵥ, idx+1:Lv]; @views Rᵤ[lᵥ+1+δL:Lu, idx+δL+1:Lu] .= Rᵥ[lᵥ+1:Lv, idx+1:Lv])
+    @views copyto!(Rᵤ[1:lᵥ, 1:idx], Rᵥ[1:lᵥ, 1:idx])
+    @views copyto!(Rᵤ[lᵥ+1+δL:Lu, 1:idx], Rᵥ[lᵥ+1:Lv, 1:idx])
+    idx == Lv || (@views copyto!(Rᵤ[1:lᵥ, idx+δL+1:Lu], Rᵥ[1:lᵥ, idx+1:Lv]); 
+                  @views copyto!(Rᵤ[lᵥ+1+δL:Lu, idx+δL+1:Lu], Rᵥ[lᵥ+1:Lv, idx+1:Lv])
+                )
     Rᵤ_sub = @view Rᵤ[lᵥ+1 : lᵥ+δL, idx+1 : idx+δL]
     Rᵤ_sub[diagind(Rᵤ_sub)] .= 1
 
