@@ -106,7 +106,7 @@ function ImA!(G::LDR{T,E}, A::LDR{T,E}, ws::LDRWorkspace{T,E}) where {T,E}
     Lₐ⁻¹Rₐ⁻¹ = Lₐ' * Rₐ⁻¹
 
     # calculate L†Rₐ⁻¹ - D
-    @inbounds for i in 1:eachindex(dₐ)
+    @inbounds for i in eachindex(dₐ)
         Lₐ⁻¹Rₐ⁻¹[i, i] -= dₐ[i]
     end
 
