@@ -5,7 +5,7 @@
 abstract type System end
 abstract type Hubbard <: System end
 
-struct BilayerHubbard <: Hubbard
+struct BilayerHubbard{T} <: Hubbard
     ### Model Constants ###
     Ns::Tuple{Int64, Int64}
     V::Int64
@@ -21,6 +21,8 @@ struct BilayerHubbard <: Hubbard
     
     ### Automatically-generated Constants ###
     auxfield::Matrix{Float64}
+    V₊::Vector{T}
+    V₋::Vector{T}
 
     # if use first-order Trotterization: exp(-ΔτK) * exp(-ΔτV)
     useFirstOrderTrotter::Bool
@@ -50,26 +52,32 @@ struct BilayerHubbard <: Hubbard
                 exp(γ / 2 - Δτ * U / 4) exp(γ / 2 - Δτ * U / 4);
                 exp(-γ / 2 - Δτ * U / 4) exp(-γ / 2 - Δτ * U / 4)
             ]
+            sys_type = ComplexF64
         else
             γ = atanh(sqrt(tanh(Δτ * U / 4)))
             auxfield = [
                 exp(2 * γ - Δτ * U / 2) exp(-2 * γ - Δτ * U / 2);
                 exp(-2 * γ - Δτ * U / 2) exp(2 * γ - Δτ * U / 2)
             ]
+            sys_type = Float64
         end
 
-        return new(
-            Ns, prod(Ns)*2, 
+        V = prod(Ns)*2
+        V₊ = zeros(sys_type, V)
+        V₋ = zeros(sys_type, V)
+
+        return new{sys_type}(
+            Ns, V, 
             N, t, t′, U,
             μ, β, L,
-            auxfield,
+            auxfield, V₊, V₋,
             useFirstOrderTrotter,
             Bk
         )
     end
 end
 
-struct IonicHubbard <: Hubbard
+struct IonicHubbard{T} <: Hubbard
     ### Model Constants ###
     Ns::Tuple{Int64, Int64}
     V::Int64
@@ -86,7 +94,9 @@ struct IonicHubbard <: Hubbard
     L::Int64
     
     ### Automatically-generated Constants ###
-    auxfield::Matrix{Float64}
+    auxfield::Vector{T}
+    V₊::Vector{T}
+    V₋::Vector{T}
 
     # if use first-order Trotterization: exp(-ΔτK) * exp(-ΔτV)
     useFirstOrderTrotter::Bool
@@ -115,23 +125,23 @@ struct IonicHubbard <: Hubbard
         # see PRE 94, 063306 (2016) for explanations
         if useComplexHSTransform
             γ = acosh(complex(exp(-Δτ * U / 2)))
-            auxfield = [
-                exp(γ / 2 - Δτ * U / 4) exp(γ / 2 - Δτ * U / 4);
-                exp(-γ / 2 - Δτ * U / 4) exp(-γ / 2 - Δτ * U / 4)
-            ]
+            auxfield = [exp(γ / 2 - Δτ * U / 4), exp(-γ / 2 - Δτ * U / 4)]
+            sys_type = ComplexF64
         else
             γ = atanh(sqrt(tanh(Δτ * U / 4)))
-            auxfield = [
-                exp(2 * γ - Δτ * U / 2) exp(-2 * γ - Δτ * U / 2);
-                exp(-2 * γ - Δτ * U / 2) exp(2 * γ - Δτ * U / 2)
-            ]
+            auxfield = [exp(2 * γ - Δτ * U / 2), exp(-2 * γ - Δτ * U / 2)]
+            sys_type = Float64
         end
 
-        return new(
-            Ns, prod(Ns), 
+        V = prod(Ns)
+        V₊ = zeros(sys_type, V)
+        V₋ = zeros(sys_type, V)
+
+        return new{sys_type}(
+            Ns, V, 
             N, t, U, δ,
             μ, β, L,
-            auxfield,
+            auxfield, V₊, V₋,
             useFirstOrderTrotter,
             Bk, BΔ
         )

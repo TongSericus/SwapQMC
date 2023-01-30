@@ -98,16 +98,29 @@ function one_body_matrix_ionic_hubbard_2D(NsX::Int64, NsY::Int64, t::Float64, δ
 end
 
 ### Auxiliary-field Matrix ###
-function auxfield_matrix_hubbard(σ::AbstractArray{Int64}, auxfield::Matrix{Float64})
+function auxfield_matrix_hubbard(
+    σ::AbstractArray{Int64}, auxfield::Vector{T};
+    V₊ = zeros(T, length(σ)),
+    V₋ = zeros(T, length(σ)),
+    isComplexHST::Bool = false
+) where T
     """
         Hubbard HS field matrix generator
     """
-    pfield = isone.(σ)
-    mfield = isone.(-σ)
+    if isComplexHST
+        for i in eachindex(σ)
+            isone(σ[i]) ? (idx₊ = 1; idx₋ = 1) : (idx₊ = 2; idx₋ = 2)
+            V₊[i] = auxfield[idx₊]
+            V₋[i] = auxfield[idx₋]
+        end
+    else
+        for i in eachindex(σ)
+            isone(σ[i]) ? (idx₊ = 1; idx₋ = 2) : (idx₊ = 2; idx₋ = 1)
+            V₊[i] = auxfield[idx₊]
+            V₋[i] = auxfield[idx₋]
+        end
+    end
     
-    V₊ = pfield * auxfield[1,1] .+ mfield * auxfield[2,1]
-    V₋ = pfield * auxfield[1,2] .+ mfield * auxfield[2,2]
-
     return V₊, V₋
 end
 
@@ -123,7 +136,8 @@ function singlestep_matrix!(
     """
     Bₖ = system.Bk
 
-    V₊, V₋ = auxfield_matrix_hubbard(σ, system.auxfield)
+    auxfield_matrix_hubbard(σ, system.auxfield, V₊=system.V₊, V₋=system.V₋)
+    V₊, V₋ = system.V₊, system.V₋
 
     if useFirstOrderTrotter
         mul!(B₊, Bₖ, Diagonal(V₊))
@@ -151,7 +165,8 @@ function singlestep_matrix!(
     Bₖ = system.Bk
     BΔ = system.BΔ
 
-    V₊, V₋ = auxfield_matrix_hubbard(σ, system.auxfield)
+    auxfield_matrix_hubbard(σ, system.auxfield, V₊=system.V₊, V₋=system.V₋)
+    V₊, V₋ = system.V₊, system.V₋
     @. V₊ *= BΔ
     @. V₋ *= BΔ
 

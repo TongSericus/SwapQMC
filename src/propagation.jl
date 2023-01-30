@@ -8,8 +8,8 @@
     In-place operation of C = α * u * wᵀ
 """
 function Base.kron!(C::AbstractMatrix, α::Number, a::AbstractVector, b::AbstractVector)
-    for i in 1:eachindex(a)
-        for j in 1:eachindex(a)
+    for i in eachindex(a)
+        for j in eachindex(a)
             @inbounds C[j, i] = α * a[j] * b[i]
         end
     end
@@ -29,7 +29,7 @@ function update_G!(G::AbstractMatrix{T}, α::Float64, d::Float64, sidx::Int64, w
     Img = @view ImG[:, sidx]
 
     # compute I - G
-    for i in 1:length(g)
+    for i in eachindex(g)
         @inbounds Img[i] = -G[i, sidx]
     end
     Img[sidx] += 1
