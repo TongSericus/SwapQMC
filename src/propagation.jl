@@ -2,21 +2,50 @@
     Swap Monte Carlo Propagation in the GC
 """
 ### Basic operations ###
-function update_G!(G::AbstractMatrix{T}, α::Float64, d::Float64, sidx::Int64) where {T}
-    """
-        Fast update the Green's function at the ith site:
-        G ← G - α_{i, σ} / d_{i, i} * u * wᵀ
-        where u = (I - G)e₁, w = Gᵀe₁
-    """
-    ImG = I - G
-    @views dG = α / d * ImG[:, sidx] * (G[sidx, :])'
+"""
+    kron!(C, α, a, b)
+
+    In-place operation of C = α * u * wᵀ
+"""
+function Base.kron!(C::AbstractMatrix, α::Number, a::AbstractVector, b::AbstractVector)
+    for i in 1:length(a)
+        for j in 1:length(a)
+            @inbounds C[j, i] = α * a[j] * b[i]
+        end
+    end
+end
+
+"""
+    update_G!(G, α, d, sidx, ws)
+
+    Fast update the Green's function at the ith site:
+    G ← G - α_{i, σ} / d_{i, i} * u * wᵀ
+    where u = (I - G)e₁, w = Gᵀe₁
+"""
+function update_G!(G::AbstractMatrix{T}, α::Float64, d::Float64, sidx::Int64, ws::LDRWorkspace{T, E}) where {T, E}
+    ImG = ws.M
+    dG = ws.M′
+    g = @view G[sidx, :]
+    Img = @view ImG[:, sidx]
+
+    # compute I - G
+    for i in 1:length(g)
+        @inbounds Img[i] = -G[i, sidx]
+    end
+    Img[sidx] += 1
+
+    # compute (I - G)eᵢ * Gᵀeᵢ
+    @views kron!(dG, α / d, Img, g)
+
     G .-= dG
 end
 
+"""
+    wrap_G!(G, B, ws)
+
+    Compute G ← B * G * B⁻¹
+"""
 function wrap_G!(G::AbstractMatrix{T}, B::AbstractMatrix{T}, ws::LDRWorkspace{T, E}) where {T, E}
-    """
-        Compute G' = B * G * B⁻¹
-    """
     mul!(ws.M, B, G)
     
     B⁻¹ = ws.M′
@@ -44,8 +73,8 @@ function update_cluster!(
 
     G = swapper.G
     B⁺ = swapper.B
+    ws = swapper.ws
 
-    ws = walker.ws
     Bl = walker.Bl.B
     cluster = walker.Bc
     α = walker.α
@@ -66,19 +95,19 @@ function update_cluster!(
             if rand() < r
                 # accept the move, update the field and the Green's function
                 walker.auxfield[j, l] *= -1
-                update_G!(G[1], α[1, σ[j]], d_up, sidx)
-                update_G!(G[2], α[2, σ[j]], d_dn, sidx)
+                update_G!(G[1], α[1, σ[j]], d_up, sidx, ws)
+                update_G!(G[2], α[2, σ[j]], d_dn, sidx, ws)
             end
         end
         
         @views σ = walker.auxfield[:, l]
-        singlestep_matrix!(Bl[i], Bl[k + i], σ, system, tmpmat = ws.M)
+        singlestep_matrix!(Bl[i], Bl[k + i], σ, system, tmpmat = walker.ws.M)
 
         # rank-1 update of the Green's function
         expand!(B⁺, Bl[i], LA, LB, ridx)
-        wrap_G!(G[1], B⁺, swapper.ws)
+        wrap_G!(G[1], B⁺, ws)
         expand!(B⁺, Bl[k + i], LA, LB, ridx)
-        wrap_G!(G[2], B⁺, swapper.ws)
+        wrap_G!(G[2], B⁺, ws)
     end
 
     @views copyto!(cluster.B[cidx], prod(Bl[k:-1:1]))
@@ -87,15 +116,15 @@ function update_cluster!(
     return nothing
 end
 
+"""
+    sweep!(extsys, qmc, swapper, walker, ridx)
+
+    Sweep the walker over the entire space over the imaginary time from 0 to β (ridx=1) or from β to 2β (ridx=2)
+"""
 function sweep!(
     extsys::ExtendedSystem, qmc::QMC, 
     swapper::HubbardGCSwapper, walker::HubbardGCWalker, ridx::Int
 )
-    """
-        Sweep the walker over the entire space over the imaginary time from 0 to β (ridx=1) or from β to 2β (ridx=2)
-
-        ridx -> replica index
-    """
     K = qmc.K
     
     ws = swapper.ws
@@ -178,8 +207,8 @@ function update_cluster!(
             if rand() < r
                 # accept the move, update the field and the Green's function
                 walker.auxfield[j, l] *= -1
-                update_G!(G[1], α[1, σ[j]], d_up, j)
-                update_G!(G[2], α[2, σ[j]], d_dn, j)
+                update_G!(G[1], α[1, σ[j]], d_up, j, ws)
+                update_G!(G[2], α[2, σ[j]], d_dn, j, ws)
             end
         end
         
