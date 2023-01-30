@@ -156,7 +156,7 @@ struct ExtendedSystem{T}
     function ExtendedSystem(sys::System, Aidx::Vector{Int64}) 
 
         LA = length(Aidx)
-        Bidx = findall(x -> !(x in Aidx), collect(1:prod(sys.V)))
+        Bidx = findall(x -> !(x in Aidx), 1:prod(sys.V))
         LB = length(Bidx)
         Vext = LA + 2 * LB
 

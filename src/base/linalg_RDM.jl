@@ -106,7 +106,7 @@ function ImA!(G::LDR{T,E}, A::LDR{T,E}, ws::LDRWorkspace{T,E}) where {T,E}
     Lₐ⁻¹Rₐ⁻¹ = Lₐ' * Rₐ⁻¹
 
     # calculate L†Rₐ⁻¹ - D
-    @inbounds for i in 1 : length(dₐ)
+    @inbounds for i in 1:eachindex(dₐ)
         Lₐ⁻¹Rₐ⁻¹[i, i] -= dₐ[i]
     end
 
@@ -138,10 +138,18 @@ reset!(U::AbstractMatrix{T}) where {T} = let
     @. U = 0.0
 end
 
+reset!(U::LDR{T,E}) where {T, E} = let
+    @. U.L = 0.0
+    @. U.d = 1.0
+    @. U.R = 0.0
+end
+
+"""
+    expand!(U, V, LA, LB, ridx)
+
+    Fill the matrix/decomposition U by expanding the matrix/decomposition V via inserting a unit matrix
+"""
 function expand!(U::AbstractMatrix{T}, V::AbstractMatrix{T}, LA::Int, LB::Int, ridx::Int) where T
-    """
-        Fill U by expanding V via inserting a unit matrix
-    """
     reset!(U)
     L = LA + LB
 
@@ -164,16 +172,7 @@ function expand!(U::AbstractMatrix{T}, V::AbstractMatrix{T}, LA::Int, LB::Int, r
     return nothing
 end
 
-reset!(U::LDR{T,E}) where {T, E} = let
-    @. U.L = 0.0
-    @. U.d = 1.0
-    @. U.R = 0.0
-end
-
 function expand!(U::LDR{T,E}, V::LDR{T,E}, ridx::Int; expβμ::Float64 = 1.0) where {T, E}
-    """
-        Fill U by expanding V via inserting a unit matrix
-    """
     Lᵤ = U.L
     dᵤ = U.d
     Rᵤ = U.R

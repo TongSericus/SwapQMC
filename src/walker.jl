@@ -14,11 +14,9 @@ Cluster(A::Factorization{T}, N::Int) where T = Cluster(B = [similar(A) for _ in 
 ### Random walker definitions ###
 abstract type GCWalker end
 
+# GC walker for Hubbard-type model where a fast rank-1 update is available,
+# could be regular, ionic, bilayer, etc.
 struct HubbardGCWalker{Ts<:Number, T<:Number, Fact<:Factorization{T}, E, C} <: GCWalker
-    """
-        GC walker for Hubbard-type model where a fast rank-1 update is available,
-        could be regular, ionic, bilayer, etc.
-    """
     α::Matrix{Float64}
 
     # Statistical weights of the walker, stored in the logarithmic form, while signs are the phases
@@ -47,15 +45,17 @@ struct HubbardGCWalker{Ts<:Number, T<:Number, Fact<:Factorization{T}, E, C} <: G
     Bc::Cluster{C}
 end
 
+"""
+    HubbardGCWalker(s::System, q::QMC)
+
+    Initialize a Hubbard-type GC walker given the model parameters
+"""
 function HubbardGCWalker(
     system::Hubbard, qmc::QMC;
     auxfield::Matrix{Int} = 2 * (rand(system.V, system.L) .< 0.5) .- 1, 
     μ::Float64 = system.μ,
     T::DataType = Float64
 )
-    """
-        Initialize a Hubbard-type GC walker
-    """
     Ns = system.V
     k = qmc.stab_interval
 
@@ -79,6 +79,11 @@ function HubbardGCWalker(
     return HubbardGCWalker(α, -weight, sgn, Ref(expβμ), auxfield, F, ws, G, FC, Fτ, Bl, Bc)
 end
 
+"""
+    update!(a::Walker)
+
+    Update the Green's function and weight of the walker
+"""
 function update!(walker::HubbardGCWalker)
     """
         Update the Green's function, weight of the walker
@@ -98,7 +103,6 @@ function update!(walker::HubbardGCWalker)
 end
 
 ### Swap walker definitions ###
-
 abstract type Swapper end
 
 struct HubbardGCSwapper{Ts<:Number, T<:Number, E<:Number, Fact<:Factorization{T}} <: Swapper
@@ -153,10 +157,12 @@ function HubbardGCSwapper(
     return HubbardGCSwapper(weight, sign, F, ws, G, B, C, L, R)
 end
 
+"""
+    update!(s::Swapper)
+
+    Update the Green's function and weight of the swapper
+"""
 function update!(swapper::HubbardGCSwapper)
-    """
-        Update the Green's function, weight of the walker
-    """
     weight = swapper.weight
     sign = swapper.sign
     G = swapper.G
@@ -171,10 +177,12 @@ function update!(swapper::HubbardGCSwapper)
     return nothing
 end
 
+"""
+    fill!(s::Swapper, a::Walker, b::Walker)
+
+    Fill a (potentially empty) swapper with two walkers
+"""
 function fill!(swapper::HubbardGCSwapper, walker₁::HubbardGCWalker, walker₂::HubbardGCWalker)
-    """
-        Fill a (potentially empty) swapper with two walkers
-    """
     expβμ = walker₁.expβμ[]
 
     F = swapper.F

@@ -8,8 +8,8 @@
     In-place operation of C = α * u * wᵀ
 """
 function Base.kron!(C::AbstractMatrix, α::Number, a::AbstractVector, b::AbstractVector)
-    for i in 1:length(a)
-        for j in 1:length(a)
+    for i in 1:eachindex(a)
+        for j in 1:eachindex(a)
             @inbounds C[j, i] = α * a[j] * b[i]
         end
     end
@@ -117,9 +117,9 @@ function update_cluster!(
 end
 
 """
-    sweep!(extsys, qmc, swapper, walker, ridx)
+    sweep!(extsys::ExtendedSystem, qmc::QMC, s::Swapper, w::Walker, ridx::Int)
 
-    Sweep the walker over the entire space over the imaginary time from 0 to β (ridx=1) or from β to 2β (ridx=2)
+    Sweep the walker over the extended Hilbert space over the imaginary time from 0 to β (ridx=1) or from β to 2β (ridx=2)
 """
 function sweep!(
     extsys::ExtendedSystem, qmc::QMC, 
@@ -226,10 +226,12 @@ function update_cluster!(
     return nothing
 end
 
+"""
+    sweep!(sys::System, qmc::QMC, s::Walker)
+
+    Sweep a single walker over the imaginary time from 0 to β
+"""
 function sweep!(system::Hubbard, qmc::QMC, walker::HubbardGCWalker)
-    """
-        Sweep a single walker over the imaginary time from 0 to β
-    """
     K = qmc.K
 
     ws = walker.ws
