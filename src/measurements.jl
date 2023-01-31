@@ -107,8 +107,7 @@ function measure_EE!(
 
     # compute the transition probability
     p = sum(walker₁.weight) + sum(walker₂.weight) - sum(swapper.weight)
-    p_sign = prod(walker₁.sign) * prod(walker₂.sign) * prod(swapper.sign)
-    etgm.p[] = min(1, p_sign * exp(p))
+    etgm.p[] = min(1, exp(p))
 
     return nothing
 end
@@ -123,9 +122,8 @@ function measure_EE(
 
     fill!(swapper, walker₁, walker₂)
     p = sum(swapper.weight) - sum(walker₁.weight) - sum(walker₂.weight)
-    p_sign = prod(walker₁.sign) * prod(walker₂.sign) * prod(swapper.sign)
 
-    return min(1, p_sign * exp(p))
+    return min(1, exp(p))
 end
 
 function Grover_estimator(
