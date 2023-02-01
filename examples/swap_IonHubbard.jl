@@ -1,12 +1,12 @@
 using SwapQMC, JLD
 
+"""
+    MC simulation for entanglement measurements
+"""
 function run_swap_gce(
-    extsys::ExtendedSystem{IonicHubbard}, qmc::QMC, 
-    direction::Int64, file_id::Int64
+    extsys::ExtendedSystem, qmc::QMC, 
+    direction::Int64, path::String, filename::String
 )
-    """
-        MC simulation for entanglement measurements
-    """
     system = extsys.system
 
     ### Sweep in the Z_{A, 2} space ###
@@ -48,15 +48,14 @@ function run_swap_gce(
             sgn[i] = prod(swapper.sign)
             @views copyto!(Pn2_up[:, i], real(etgm.Pn2₊))
             @views copyto!(Pn2_dn[:, i], real(etgm.Pn2₋))
+	end
+	
+        jldopen("$(path)/$(filename)", "w") do file
+            write(file, "sgn", sgn)
+            write(file, "p", p)
+            write(file, "Pn2_up", Pn2_up)
+            write(file, "Pn2_dn", Pn2_dn)
         end
-
-        #filename = "denom_U$(system.U)_Delta$(system.Δ)_beta$(system.β)_$(file_id).jld"
-        #jldopen("../data/GCE_IonHub_Lx$(system.Ns[1])Ly$(system.Ns[2])_LA$(extsys.LA)/$filename", "w") do file
-        #    write(file, "sgn", sgn)
-        #    write(file, "p", p)
-        #    write(file, "Pn2_up", Pn2_up)
-        #    write(file, "Pn2_dn", Pn2_dn)
-        #end
 
     ### Sweep in the Z² space ###
     elseif direction == 2
@@ -84,8 +83,7 @@ function run_swap_gce(
             sgn[i] = prod(walker1.sign) * prod(walker2.sign)
         end
 
-        filename = "num_U$(system.U)_Delta$(system.Δ)_beta$(system.β)_$(file_id).jld"
-        jldopen("../data/GCE_IonHub_Lx$(system.Ns[1])Ly$(system.Ns[2])_LA$(extsys.LA)/$filename", "w") do file
+        jldopen("$(path)/$(filename)", "w") do file
             write(file, "sgn", sgn)
             write(file, "p", p)
         end
