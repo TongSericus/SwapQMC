@@ -35,7 +35,7 @@ jobs:
           version: ${{ matrix.julia-version }}
           arch: ${{ matrix.julia-arch }}
       - name: Test loadability
-        run: julia --project=@. -e 'using Pkg;Pkg.instantiate();using Webviews'
+        run: julia --project=@. -e 'using Pkg;Pkg.instantiate();using SwapQMC'
       - name: Test
         uses: julia-actions/julia-runtest@latest
         with:
