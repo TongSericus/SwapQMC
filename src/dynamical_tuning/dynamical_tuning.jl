@@ -12,7 +12,7 @@ Base.@kwdef struct MuTuner{T<:Number}
     N²t::Vector{T} = []
 end
 
-measure_n(V::Int, walker::HubbardGCWalker) = 2*V - sum(tr.(walker.G))
+measure_n(V::Int, walker::GCWalker) = 2*V - sum(tr.(walker.G))
 
 function dynamical_tuning(
     system::Hubbard, qmc::QMC, μ0::Float64, T::Int64, mT::Int64;
@@ -25,12 +25,15 @@ function dynamical_tuning(
     # target particle number
     Nₒ = sum(system.N)
 
-    walker = HubbardGCWalker(system, qmc, μ=tuner.μ[])
+    unload_μ!(system)
+
+    walker = TunableHubbardWalker(system, qmc, μ=tuner.μ[])
     μt = tuner.μ[]
 
     for t in 1 : T
         # change mu of the walker to the new average
         walker.expβμ[] = exp(system.β * μt)
+        update!(walker)
         # in case the sign problem is severe, collect multiple samples (mT>1) before averaging
         for i = 1 : mT
             sweep!(system, qmc, walker)

@@ -65,9 +65,9 @@ flip_HSField(σ::Int) = Int64((σ + 1) / 2 + 1)
 ### Sweep in the Z_{A, 2} space ###
 ###################################
 function update_cluster!(
-    walker::HubbardGCWalker, swapper::HubbardGCSwapper,
-    extsys::ExtendedSystem, qmc::QMC, cidx::Int, ridx::Int
-)
+    walker::GCWalker, swapper::Swapper,
+    extsys::ExtendedSystem{T}, qmc::QMC, cidx::Int, ridx::Int
+) where {T<:Hubbard}
     system = extsys.system
     LA = extsys.LA
     LB = extsys.LB
@@ -134,9 +134,9 @@ end
     Sweep the walker over the extended Hilbert space over the imaginary time from 0 to β (ridx=1) or from β to 2β (ridx=2)
 """
 function sweep!(
-    extsys::ExtendedSystem, qmc::QMC, 
-    swapper::HubbardGCSwapper, walker::HubbardGCWalker, ridx::Int
-)
+    extsys::ExtendedSystem{T}, qmc::QMC, 
+    swapper::Swapper, walker::GCWalker, ridx::Int
+) where {T<:Hubbard}
     K = qmc.K
     
     ws = swapper.ws
@@ -193,7 +193,7 @@ end
 ### Sweep in the Z² space ###
 #############################
 function update_cluster!(
-    walker::HubbardGCWalker,
+    walker::GCWalker,
     system::Hubbard, qmc::QMC, cidx::Int
 )
     k = qmc.K_interval[cidx]
@@ -251,7 +251,7 @@ end
 
     Sweep a single walker over the imaginary time from 0 to β
 """
-function sweep!(system::Hubbard, qmc::QMC, walker::HubbardGCWalker)
+function sweep!(system::Hubbard, qmc::QMC, walker::GCWalker)
     K = qmc.K
 
     ws = walker.ws

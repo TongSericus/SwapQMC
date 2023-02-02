@@ -37,7 +37,7 @@ struct BilayerHubbard{T} <: Hubbard
         μ::Float64,
         β::Float64, L::Int64;
         useComplexHSTransform::Bool = false,
-        useFirstOrderTrotter::Bool = true
+        useFirstOrderTrotter::Bool = false
     )  
         Δτ = β / L
 
@@ -118,7 +118,7 @@ struct IonicHubbard{T} <: Hubbard
         δ::Float64, μ::Float64,
         β::Float64, L::Int64;
         useComplexHSTransform::Bool = false,
-        useFirstOrderTrotter::Bool = true
+        useFirstOrderTrotter::Bool = false
     )  
         Δτ = β / L
 

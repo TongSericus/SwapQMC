@@ -18,8 +18,10 @@ module SwapQMC
     include("./operations.jl")
     include("./propagation.jl")
 
-    export MuTuner, dynamical_tuning
-    include("./dynamical_tuning.jl")
+    export TunableHubbard, TunableHubbardWalker,
+           MuTuner, dynamical_tuning
+    include("./dynamical_tuning/base.jl")
+    include("./dynamical_tuning/dynamical_tuning.jl")
 
     export EtgData, EtgMeasurement, measure_EE, measure_EE!
     include("./measurements.jl")
