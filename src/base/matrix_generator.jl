@@ -125,15 +125,15 @@ function auxfield_matrix_hubbard(
 end
 
 ### Combined Matrix ###
-function singlestep_matrix!(
+"""
+    Compute the propagator matrix for Bilayer Hubbard Model
+"""
+function imagtime_propagator!(
     B₊::AbstractMatrix{T}, B₋::AbstractMatrix{T},
     σ::AbstractArray{Int64}, system::BilayerHubbard;
     useFirstOrderTrotter::Bool = system.useFirstOrderTrotter,
     tmpmat = similar(B₊)
 ) where {T<:Number}
-    """
-        Compute the propagator matrix for Bilayer Hubbard Model
-    """
     Bₖ = system.Bk
 
     auxfield_matrix_hubbard(σ, system.auxfield, V₊=system.V₊, V₋=system.V₋)
@@ -153,15 +153,15 @@ function singlestep_matrix!(
     return nothing
 end
 
-function singlestep_matrix!(
+"""
+    Compute the propagator matrix for Ionic Hubbard Model
+"""
+function imagtime_propagator!(
     B₊::AbstractMatrix{T}, B₋::AbstractMatrix{T},
     σ::AbstractArray{Int64}, system::IonicHubbard;
     useFirstOrderTrotter::Bool = system.useFirstOrderTrotter,
     tmpmat = similar(B₊)
 ) where {T<:Number}
-    """
-        Compute the propagator matrix for Ionic Hubbard Model
-    """
     Bₖ = system.Bk
     BΔ = system.BΔ
 

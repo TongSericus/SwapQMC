@@ -54,12 +54,16 @@ function wrap_G!(G::AbstractMatrix{T}, B::AbstractMatrix{T}, ws::LDRWorkspace{T,
     mul!(G, ws.M, B⁻¹)
 end
 
+function wrap_G!(G::AbstractMatrix{T}, B::AbstractMatrix{T}, B⁻¹::AbstractMatrix{T}, ws::LDRWorkspace{T, E}) where {T, E}
+    mul!(ws.M, B, G)
+    mul!(G, ws.M, B⁻¹)
+end
+
 flip_HSField(σ::Int) = Int64((σ + 1) / 2 + 1)
 
 ###################################
 ### Sweep in the Z_{A, 2} space ###
 ###################################
-
 function update_cluster!(
     walker::HubbardGCWalker, swapper::HubbardGCSwapper,
     extsys::ExtendedSystem, qmc::QMC, cidx::Int, ridx::Int
@@ -73,6 +77,8 @@ function update_cluster!(
 
     G = swapper.G
     B⁺ = swapper.B
+    Bk = swapper.Bk[ridx]
+    Bk⁻¹ = swapper.Bk⁻¹[ridx]
     ws = swapper.ws
 
     Bl = walker.Bl.B
@@ -82,6 +88,9 @@ function update_cluster!(
     for i in 1 : k
         l = (cidx - 1) * qmc.stab_interval + i
         @views σ = flip_HSField.(walker.auxfield[:, l])
+
+        # compute G <- Bk * G * Bk⁻¹ to enable fast update
+        system.useFirstOrderTrotter || (wrap_G!(G[1], Bk, Bk⁻¹, ws); wrap_G!(G[2], Bk, Bk⁻¹, ws))
 
         for j in 1 : system.V
             sidx = j
@@ -99,9 +108,12 @@ function update_cluster!(
                 update_G!(G[2], α[2, σ[j]], d_dn, sidx, ws)
             end
         end
+
+        # compute G <- Bk⁻¹ * G * Bk to restore the ordering
+        system.useFirstOrderTrotter || (wrap_G!(G[1], Bk⁻¹, Bk, ws); wrap_G!(G[2], Bk⁻¹, Bk, ws))
         
         @views σ = walker.auxfield[:, l]
-        singlestep_matrix!(Bl[i], Bl[k + i], σ, system, tmpmat = walker.ws.M)
+        imagtime_propagator!(Bl[i], Bl[k + i], σ, system, tmpmat = walker.ws.M)
 
         # rank-1 update of the Green's function
         expand!(B⁺, Bl[i], LA, LB, ridx)
@@ -144,7 +156,7 @@ function sweep!(
         # multiply the updated slice to the right factorization
         lmul!(Bc[cidx], tmpR[1], walker.ws)
         # then expand to the larger factorization
-        expand!(R⁺, tmpR[1], ridx; expβμ = walker.expβμ[])
+        expand!(R⁺, tmpR[1], ridx)
         expand!(L⁺, tmpL[cidx], ridx)
         # then merge the right, central and left factorizations,
         # note that B¹_{cidx} is at the leftmost position, i.e.,
@@ -154,7 +166,7 @@ function sweep!(
 
         # same step for spin-dn
         lmul!(Bc[K + cidx], tmpR[2], walker.ws)
-        expand!(R⁺, tmpR[2], ridx; expβμ = walker.expβμ[])
+        expand!(R⁺, tmpR[2], ridx)
         expand!(L⁺, tmpL[K + cidx], ridx)
         mul!(F[2], R⁺, C⁺[2], ws)
         rmul!(F[2], L⁺, ws)
@@ -164,12 +176,12 @@ function sweep!(
     end
 
     # At the end of the simulation, recompute all partial factorizations
-    run_full_propagation_reverse(walker.Bc, walker.ws, FC = walker.FC)
+    run_full_propagation(walker.Bc, walker.ws, FC = walker.FC)
 
     # save Fτs
     copyto!.(walker.F, tmpR)
-    expand!(C⁺[1], walker.F[1], ridx; expβμ = walker.expβμ[])
-    expand!(C⁺[2], walker.F[2], ridx; expβμ = walker.expβμ[])
+    expand!(C⁺[1], walker.F[1], ridx)
+    expand!(C⁺[2], walker.F[2], ridx)
     # then reset Fτs to unit matrices
     ldr!(tmpR[1], I)
     ldr!(tmpR[2], I)
@@ -180,13 +192,15 @@ end
 #############################
 ### Sweep in the Z² space ###
 #############################
-
 function update_cluster!(
     walker::HubbardGCWalker,
     system::Hubbard, qmc::QMC, cidx::Int
 )
     k = qmc.K_interval[cidx]
     K = qmc.K
+
+    Bk = system.Bk
+    Bk⁻¹ = system.Bk⁻¹
 
     G = walker.G
     ws = walker.ws
@@ -197,6 +211,9 @@ function update_cluster!(
     for i in 1 : k
         l = (cidx - 1) * qmc.stab_interval + i
         @views σ = flip_HSField.(walker.auxfield[:, l])
+
+        # compute G <- Bk * G * Bk⁻¹ to enable fast update
+        system.useFirstOrderTrotter || (wrap_G!(G[1], Bk, Bk⁻¹, ws); wrap_G!(G[2], Bk, Bk⁻¹, ws))
 
         for j in 1 : system.V
             # compute ratios of determinants through G
@@ -212,8 +229,11 @@ function update_cluster!(
             end
         end
         
+        # compute G <- Bk⁻¹ * G * Bk to restore the ordering
+        system.useFirstOrderTrotter || (wrap_G!(G[1], Bk⁻¹, Bk, ws); wrap_G!(G[2], Bk⁻¹, Bk, ws))
+
         @views σ = walker.auxfield[:, l]
-        singlestep_matrix!(Bl[i], Bl[k + i], σ, system, tmpmat = ws.M)
+        imagtime_propagator!(Bl[i], Bl[k + i], σ, system, tmpmat = ws.M)
 
         # rank-1 update of the Green's function
         wrap_G!(G[1], Bl[i], ws)
@@ -257,7 +277,7 @@ function sweep!(system::Hubbard, qmc::QMC, walker::HubbardGCWalker)
     end
 
     # At the end of the simulation, recompute all partial factorizations
-    run_full_propagation_reverse(walker.Bc, walker.ws, FC = walker.FC)
+    run_full_propagation(walker.Bc, walker.ws, FC = walker.FC)
 
     # save Fτs
     copyto!.(walker.F, tmpR)

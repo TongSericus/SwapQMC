@@ -23,9 +23,6 @@ struct HubbardGCWalker{Ts<:Number, T<:Number, Fact<:Factorization{T}, E, C} <: G
     weight::Vector{Float64}
     sign::Vector{Ts}
 
-    # Use reference to make chemical potential tunable on the fly
-    expβμ::Base.RefValue{Float64}
-
     auxfield::Matrix{Int64}
     F::Vector{Fact}
     ws::LDRWorkspace{T, E}
@@ -53,7 +50,6 @@ end
 function HubbardGCWalker(
     system::Hubbard, qmc::QMC;
     auxfield::Matrix{Int} = 2 * (rand(system.V, system.L) .< 0.5) .- 1, 
-    μ::Float64 = system.μ,
     T::DataType = Float64
 )
     Ns = system.V
@@ -64,19 +60,18 @@ function HubbardGCWalker(
 
     G = [Matrix{T}(1.0I, Ns, Ns), Matrix{T}(1.0I, Ns, Ns)]
     ws = ldr_workspace(G[1])
-    F, Bc, FC = run_full_propagation_reverse(auxfield, system, qmc, ws)
+    F, Bc, FC = run_full_propagation(auxfield, system, qmc, ws)
 
     Fτ = ldrs(G[1], 2)
     Bl = Cluster(Ns, 2 * k)
 
-    expβμ = exp(system.β * μ)
-    weight[1], sgn[1] = inv_IpμA!(G[1], F[1], expβμ, ws)
-    weight[2], sgn[2] = inv_IpμA!(G[2], F[2], expβμ, ws)
+    weight[1], sgn[1] = inv_IpA!(G[1], F[1], ws)
+    weight[2], sgn[2] = inv_IpA!(G[2], F[2], ws)
 
-    α = system.auxfield[1, 1] / system.auxfield[2, 1]
+    α = system.auxfield[1] / system.auxfield[2]
     α = [α - 1 1/α - 1; 1/α - 1 α - 1]
 
-    return HubbardGCWalker(α, -weight, sgn, Ref(expβμ), auxfield, F, ws, G, FC, Fτ, Bl, Bc)
+    return HubbardGCWalker(α, -weight, sgn, auxfield, F, ws, G, FC, Fτ, Bl, Bc)
 end
 
 """
@@ -90,12 +85,11 @@ function update!(walker::HubbardGCWalker)
     """
     weight = walker.weight
     sgn = walker.sign
-    expβμ = walker.expβμ[]
     G = walker.G
     F = walker.F
 
-    weight[1], sgn[1] = inv_IpμA!(G[1], F[1], expβμ, walker.ws)
-    weight[2], sgn[2] = inv_IpμA!(G[2], F[2], expβμ, walker.ws)
+    weight[1], sgn[1] = inv_IpA!(G[1], F[1], walker.ws)
+    weight[2], sgn[2] = inv_IpA!(G[2], F[2], walker.ws)
 
     @. weight *= -1
 
@@ -114,6 +108,8 @@ struct HubbardGCSwapper{Ts<:Number, T<:Number, E<:Number, Fact<:Factorization{T}
 
     # preallocated temporal data
     B::Matrix{Float64}
+    Bk::Vector{Matrix{Float64}}
+    Bk⁻¹::Vector{Matrix{Float64}}
     C::Vector{Fact}
     L::Fact
     R::Fact
@@ -123,13 +119,23 @@ function HubbardGCSwapper(
     extsys::ExtendedSystem, 
     walker₁::HubbardGCWalker, walker₂::HubbardGCWalker,
     T::DataType = eltype(walker₁.sign)
-)
+)   
+    system = extsys.system
     V = extsys.Vext
-    expβμ = walker₁.expβμ[]
 
     B = Matrix{T}(1.0I, V, V)
     G = [Matrix{T}(1.0I, V, V), Matrix{T}(1.0I, V, V)]
     
+    # expand Bk and Bk⁻¹
+    LA = extsys.LA
+    LB = extsys.LB
+    Bk = [Matrix{T}(1.0I, V, V), Matrix{T}(1.0I, V, V)]
+    expand!(Bk[1], system.Bk, LA, LB, 1)
+    expand!(Bk[2], system.Bk, LA, LB, 2)
+    Bk⁻¹ = [Matrix{T}(1.0I, V, V), Matrix{T}(1.0I, V, V)]
+    expand!(Bk⁻¹[1], system.Bk⁻¹, LA, LB, 1)
+    expand!(Bk⁻¹[2], system.Bk⁻¹, LA, LB, 2)
+
     F = ldrs(B, 2)
     ws = ldr_workspace(B)
     C = ldrs(B, 2)
@@ -137,13 +143,13 @@ function HubbardGCSwapper(
     R = ldr(B)
 
     # expand F in the spin-up part and then merge
-    expand!(F[1], walker₁.F[1], 1, expβμ = expβμ)
-    expand!(L, walker₂.F[1], 2, expβμ = expβμ)
+    expand!(F[1], walker₁.F[1], 1)
+    expand!(L, walker₂.F[1], 2)
     copyto!(C[1], L)
     lmul!(L, F[1], ws)
     # expand F in the spin-down part and then merge
-    expand!(F[2], walker₁.F[2], 1, expβμ = expβμ)
-    expand!(L, walker₂.F[2], 2, expβμ = expβμ)
+    expand!(F[2], walker₁.F[2], 1)
+    expand!(L, walker₂.F[2], 2)
     copyto!(C[2], L)
     lmul!(L, F[2], ws)
 
@@ -154,7 +160,7 @@ function HubbardGCSwapper(
     weight[2], sign[2] = inv_IpA!(G[2], F[2], ws)
     @. weight *= -1
 
-    return HubbardGCSwapper(weight, sign, F, ws, G, B, C, L, R)
+    return HubbardGCSwapper(weight, sign, F, ws, G, B, Bk, Bk⁻¹, C, L, R)
 end
 
 """
@@ -182,22 +188,23 @@ end
 
     Fill a (potentially empty) swapper with two walkers
 """
-function fill!(swapper::HubbardGCSwapper, walker₁::HubbardGCWalker, walker₂::HubbardGCWalker)
-    expβμ = walker₁.expβμ[]
-
+function fill!(
+    swapper::HubbardGCSwapper, 
+    walker₁::HubbardGCWalker, walker₂::HubbardGCWalker
+)
     F = swapper.F
     C = swapper.C
     L = swapper.L
     ws = swapper.ws
 
     # expand F in the spin-up part and then merge
-    expand!(F[1], walker₁.F[1], 1, expβμ = expβμ)
-    expand!(L, walker₂.F[1], 2, expβμ = expβμ)
+    expand!(F[1], walker₁.F[1], 1)
+    expand!(L, walker₂.F[1], 2)
     copyto!(C[1], L)
     lmul!(L, F[1], ws)
     # expand F in the spin-down part and then merge
-    expand!(F[2], walker₁.F[2], 1, expβμ = expβμ)
-    expand!(L, walker₂.F[2], 2, expβμ = expβμ)
+    expand!(F[2], walker₁.F[2], 1)
+    expand!(L, walker₂.F[2], 2)
     copyto!(C[2], L)
     lmul!(L, F[2], ws)
 

@@ -29,12 +29,13 @@ struct BilayerHubbard{T} <: Hubbard
 
     # kinetic propagator
     Bk::Matrix{Float64}
+    Bk⁻¹::Matrix{Float64}
 
     function BilayerHubbard(
         Ns::Tuple{Int64, Int64}, N::Tuple{Int64, Int64},
         t::Float64, t′::Float64, U::Float64,
         μ::Float64,
-        β::Float64, L::Int64,
+        β::Float64, L::Int64;
         useComplexHSTransform::Bool = false,
         useFirstOrderTrotter::Bool = true
     )  
@@ -42,6 +43,7 @@ struct BilayerHubbard{T} <: Hubbard
 
         T = one_body_matrix_bilayer_hubbard(Ns[1], Ns[2], t, t′)
         useFirstOrderTrotter ? Bk = exp(-T * Δτ) : Bk = exp(-T * Δτ / 2)
+        Bk⁻¹ = inv(Bk)
 
         ### HS transform ###
         # complex HS transform is more stable for entanglement measures
@@ -62,6 +64,9 @@ struct BilayerHubbard{T} <: Hubbard
             sys_type = Float64
         end
 
+        # add chemical potential
+        @. auxfield *= exp.(μ * Δτ)
+
         V = prod(Ns)*2
         V₊ = zeros(sys_type, V)
         V₋ = zeros(sys_type, V)
@@ -72,7 +77,7 @@ struct BilayerHubbard{T} <: Hubbard
             μ, β, L,
             auxfield, V₊, V₋,
             useFirstOrderTrotter,
-            Bk
+            Bk, Bk⁻¹
         )
     end
 end
@@ -103,6 +108,7 @@ struct IonicHubbard{T} <: Hubbard
 
     # kinetic propagator
     Bk::Matrix{Float64}
+    Bk⁻¹::Matrix{Float64}
     # staggered potential chain
     BΔ::Vector{Float64}
 
@@ -110,7 +116,7 @@ struct IonicHubbard{T} <: Hubbard
         Ns::Tuple{Int64, Int64}, N::Tuple{Int64, Int64},
         t::Float64, U::Float64,
         δ::Float64, μ::Float64,
-        β::Float64, L::Int64,
+        β::Float64, L::Int64;
         useComplexHSTransform::Bool = false,
         useFirstOrderTrotter::Bool = true
     )  
@@ -118,6 +124,7 @@ struct IonicHubbard{T} <: Hubbard
 
         T, Δ = one_body_matrix_ionic_hubbard_2D(Ns[1], Ns[2], t, δ)
         useFirstOrderTrotter ? Bk = exp(-T * Δτ) : Bk = exp(-T * Δτ / 2)
+        Bk⁻¹ = inv(Bk)
         BΔ = exp.(-Δ * Δτ)
 
         ### HS transform ###
@@ -133,6 +140,9 @@ struct IonicHubbard{T} <: Hubbard
             sys_type = Float64
         end
 
+        # add chemical potential
+        @. auxfield *= exp.(μ * Δτ)
+
         V = prod(Ns)
         V₊ = zeros(sys_type, V)
         V₋ = zeros(sys_type, V)
@@ -143,7 +153,7 @@ struct IonicHubbard{T} <: Hubbard
             μ, β, L,
             auxfield, V₊, V₋,
             useFirstOrderTrotter,
-            Bk, BΔ
+            Bk, Bk⁻¹, BΔ
         )
     end
 end

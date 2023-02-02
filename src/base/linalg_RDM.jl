@@ -172,13 +172,25 @@ function expand!(U::AbstractMatrix{T}, V::AbstractMatrix{T}, LA::Int, LB::Int, r
     return nothing
 end
 
-function expand!(U::LDR{T,E}, V::LDR{T,E}, ridx::Int; expβμ::Float64 = 1.0) where {T, E}
+function expand!(
+    U::AbstractVector{T}, V::AbstractVector{T}, 
+    LA::Int, LB::Int, ridx::Int
+) where {T <: AbstractMatrix}
+    length(U) == length(V) || @error "Two vectors of matrix must have same length"
+
+    for i in eachindex(U)
+        expand!(U[i], V[i], LA, LB, ridx)
+    end
+
+    return nothing
+end
+
+function expand!(U::LDR{T,E}, V::LDR{T,E}, ridx::Int) where {T, E}
     Lᵤ = U.L
     dᵤ = U.d
     Rᵤ = U.R
     Lᵥ = V.L
-    # including μ in the diagonal matrix
-    dᵥ = expβμ * V.d
+    dᵥ = V.d
     Rᵥ = V.R
 
     Lu = length(U.d)
