@@ -5,7 +5,7 @@ struct QMC
         nwarmups -> number of warm-up steps
         nsamples -> number of samples to collect
         measure_interval -> number of sweeps between two samples
-        isCP -> Use Column-Pivoting QR decomposion
+        isCP -> Use Column-Pivoting QR decomposition
         stab_interval -> number of matrix multiplications before the stablization
         update_interval -> number of steps after which the population control and calibration is required
         isLowrank -> if enabling the low-rank truncation
