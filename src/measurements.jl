@@ -2,10 +2,8 @@
     Entanglement Entropy Measurements
 """
 
+### Preallocate data for Entanglement Measures ###
 struct EtgData{T, E}
-    """
-        Preallocated data for Entanglement Measures
-    """
     # entanglement Hamiltonians
     HA₁::LDR{T, E}
     HA₂::LDR{T, E}
@@ -51,15 +49,15 @@ struct EtgMeasurement{T}
     end
 end
 
+"""
+    Measure the transition probability and particle number distribution in Z_{A, 2} space
+"""
 function measure_EE!(
     etgm::EtgMeasurement,
     etgdata::EtgData, extsys::ExtendedSystem, 
     walker₁::HubbardGCWalker, walker₂::HubbardGCWalker,
     swapper::HubbardGCSwapper
 )
-    """
-        Measure the transition probability and particle number distribution in Z_{A, 2} space
-    """
     LA = extsys.LA
 
     HA₁ = etgdata.HA₁
@@ -112,38 +110,42 @@ function measure_EE!(
     return nothing
 end
 
+"""
+    Measure the transition probability in Z² space
+"""
 function measure_EE(
     walker₁::HubbardGCWalker, walker₂::HubbardGCWalker,
     swapper::HubbardGCSwapper
 )
-    """
-        Measure the transition probability in Z² space
-    """
-
     fill!(swapper, walker₁, walker₂)
     p = sum(swapper.weight) - sum(walker₁.weight) - sum(walker₂.weight)
 
     return min(1, exp(p))
 end
 
+"""
+    Grover_estimator(GA₁, ImGA₁, GA₂, ImGA₂, ws)
+
+    Stably calculation of the Grover's estimator det[GA₁GA₂ + (I- GA₁)(I - GA₂)]
+"""
 function Grover_estimator(
     GA₁::LDR{T, E}, ImGA₁::LDR{T, E}, 
     GA₂::LDR{T, E}, ImGA₂::LDR{T, E}, 
     ws::LDRWorkspace{T, E}; 
     U::LDR{T, E} = similar(GA₁), V::LDR{T, E} = similar(ImGA₁)
 ) where {T, E}
-    """
-        Compute det[GA₁GA₂ + (I- GA₁)(I - GA₂)]
-    """
     mul!(U, GA₁, GA₂, ws)
     mul!(V, ImGA₁, ImGA₂, ws)
     det_UpV(U, V, ws)
 end
 
+### Symmetry-resolved Calculations ###
 """
-    Accessible Renyi-2 Entropy
-"""
+    poissbino(ϵ::Vector)
 
+        A regularized version of the recursive calculation for the Poisson binomial
+    distribution give the unnormalized spectrum ϵ
+"""
 function poissbino(
     ϵ::AbstractVector{T};
     Ns::Int64 = length(ϵ),
@@ -151,15 +153,6 @@ function poissbino(
     ν2::AbstractVector{T} = 1 ./ (1 .+ ϵ),
     P::AbstractMatrix{Tp} = zeros(eltype(ϵ), Ns + 1, Ns)
 ) where {T<:Number, Tp<:Number}
-    """
-        A regularized version of the recursive calculation for the Poisson binomial
-    distribution
-        For details on how this is employed in the canonical ensemble calculations,
-    see doi.org/10.1103/PhysRevResearch.2.043206
-
-        # Argument
-        ϵ -> eigenvalues
-    """
     # Initialization
     P[1, 1] = ν2[1]
     P[2, 1] = ν1[1]
@@ -175,6 +168,12 @@ function poissbino(
     return P
 end
 
+"""
+    Pn2_estimator(GA₁, ImGA₁, GA₂, ImGA₂, ws)
+
+    Stable calculation of P_{n, 2} := exp(-S_{2, n}) / exp(-S_{2}) through recursion,
+    via the eigvalues of the entanglement Hamiltonian Hₐ = Gₐ₁(I - Gₐ₁)⁻¹Gₐ₂(I - Gₐ₂)⁻¹
+"""
 function Pn2_estimator(
     GA₁::LDR{T, E}, ImGA₁::LDR{T, E}, 
     GA₂::LDR{T, E}, ImGA₂::LDR{T, E}, 
@@ -183,9 +182,6 @@ function Pn2_estimator(
     LA = length(GA₁.d),
     P::AbstractMatrix{ComplexF64} = zeros(ComplexF64, LA + 1, LA)
 ) where {T, E}
-    """
-        compute P_{n, 2} := exp(-S_{2, n}) / exp(-S_{2})
-    """
     copyto!(HA₁, GA₁)
     copyto!(HA₂, GA₂)
 
