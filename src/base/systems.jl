@@ -20,7 +20,8 @@ struct BilayerHubbard{T} <: Hubbard
     L::Int64
     
     ### Automatically-generated Constants ###
-    auxfield::Matrix{Float64}
+    useComplexHST::Bool
+    auxfield::Vector{T}
     V₊::Vector{T}
     V₋::Vector{T}
 
@@ -36,7 +37,7 @@ struct BilayerHubbard{T} <: Hubbard
         t::Float64, t′::Float64, U::Float64,
         μ::Float64,
         β::Float64, L::Int64;
-        useComplexHSTransform::Bool = false,
+        useComplexHST::Bool = false,
         useFirstOrderTrotter::Bool = false
     )  
         Δτ = β / L
@@ -48,19 +49,13 @@ struct BilayerHubbard{T} <: Hubbard
         ### HS transform ###
         # complex HS transform is more stable for entanglement measures
         # see PRE 94, 063306 (2016) for explanations
-        if useComplexHSTransform
-            γ = acosh(complex(exp(-Δτ * U / 2)))
-            auxfield = [
-                exp(γ / 2 - Δτ * U / 4) exp(γ / 2 - Δτ * U / 4);
-                exp(-γ / 2 - Δτ * U / 4) exp(-γ / 2 - Δτ * U / 4)
-            ]
+        if useComplexHST
+            γ = acosh(exp(-Δτ * U / 2) + 0im)
+            auxfield = [exp(-γ - Δτ * U / 2), exp(γ - Δτ * U / 2)]
             sys_type = ComplexF64
         else
             γ = atanh(sqrt(tanh(Δτ * U / 4)))
-            auxfield = [
-                exp(2 * γ - Δτ * U / 2) exp(-2 * γ - Δτ * U / 2);
-                exp(-2 * γ - Δτ * U / 2) exp(2 * γ - Δτ * U / 2)
-            ]
+            auxfield = [exp(2 * γ - Δτ * U / 2), exp(-2 * γ - Δτ * U / 2)]
             sys_type = Float64
         end
 
@@ -75,7 +70,7 @@ struct BilayerHubbard{T} <: Hubbard
             Ns, V, 
             N, t, t′, U,
             μ, β, L,
-            auxfield, V₊, V₋,
+            useComplexHST, auxfield, V₊, V₋,
             useFirstOrderTrotter,
             Bk, Bk⁻¹
         )
@@ -99,6 +94,7 @@ struct IonicHubbard{T} <: Hubbard
     L::Int64
     
     ### Automatically-generated Constants ###
+    useComplexHST::Bool
     auxfield::Vector{T}
     V₊::Vector{T}
     V₋::Vector{T}
@@ -117,12 +113,16 @@ struct IonicHubbard{T} <: Hubbard
         t::Float64, U::Float64,
         δ::Float64, μ::Float64,
         β::Float64, L::Int64;
-        useComplexHSTransform::Bool = false,
+        useComplexHST::Bool = false,
         useFirstOrderTrotter::Bool = false
     )  
         Δτ = β / L
 
-        T, Δ = one_body_matrix_ionic_hubbard_2D(Ns[1], Ns[2], t, δ)
+        if Ns[2] == 1 
+            T, Δ = one_body_matrix_ionic_hubbard_1D(Ns[1], t, δ)
+        else
+            T, Δ = one_body_matrix_ionic_hubbard_2D(Ns[1], Ns[2], t, δ)
+        end
         useFirstOrderTrotter ? Bk = exp(-T * Δτ) : Bk = exp(-T * Δτ / 2)
         Bk⁻¹ = inv(Bk)
         BΔ = exp.(-Δ * Δτ)
@@ -130,11 +130,13 @@ struct IonicHubbard{T} <: Hubbard
         ### HS transform ###
         # complex HS transform is more stable for entanglement measures
         # see PRE 94, 063306 (2016) for explanations
-        if useComplexHSTransform
+        if useComplexHST
+            # HS field is coupled to charge, which preserves SU(2) symmetry
             γ = acosh(complex(exp(-Δτ * U / 2)))
             auxfield = [exp(γ / 2 - Δτ * U / 4), exp(-γ / 2 - Δτ * U / 4)]
             sys_type = ComplexF64
         else
+            # HS field is coupled to spin
             γ = atanh(sqrt(tanh(Δτ * U / 4)))
             auxfield = [exp(2 * γ - Δτ * U / 2), exp(-2 * γ - Δτ * U / 2)]
             sys_type = Float64
@@ -151,7 +153,7 @@ struct IonicHubbard{T} <: Hubbard
             Ns, V, 
             N, t, U, δ,
             μ, β, L,
-            auxfield, V₊, V₋,
+            useComplexHST, auxfield, V₊, V₋,
             useFirstOrderTrotter,
             Bk, Bk⁻¹, BΔ
         )
@@ -172,16 +174,76 @@ struct ExtendedSystem{T}
     Bidx::Vector{Int64}         # rest of the system
     LB::Int64                   # size of the rest of the system 
     Vext::Int64                 # size of the enlarged system
+end
 
-    function ExtendedSystem(sys::System, Aidx::Vector{Int64}) 
+"""
+    rearrange!(U, V, Aidx, Bidx)
 
-        LA = length(Aidx)
-        Bidx = findall(x -> !(x in Aidx), 1:prod(sys.V))
-        LB = length(Bidx)
-        Vext = LA + 2 * LB
+    Rearrange the elements in V by putting elements whose indices are in Aidx into the upper (left) block
+    of (matrix) U. Note that U and V should have the same size.
+"""
+function rearrange!(U::AbstractMatrix, V::AbstractMatrix, Aidx, Bidx)
+    LA = length(Aidx)
 
-        return new{typeof(sys)}(
-            sys,
+    @views copyto!(U[1:LA, 1:LA], V[Aidx, Aidx])
+    @views copyto!(U[1:LA, LA+1:end], V[Aidx, Bidx])
+    @views copyto!(U[LA+1:end, 1:LA], V[Bidx, Aidx])
+    @views copyto!(U[LA+1:end, LA+1:end], V[Aidx, Aidx])
+end
+
+function rearrange!(U::AbstractVector, V::AbstractVector, Aidx, Bidx)
+    LA = length(Aidx)
+
+    @views copyto!(U[1:LA], V[Aidx])
+    @views copyto!(U[LA+1:end], V[Bidx])
+end
+
+function ExtendedSystem(system::Hubbard, Aidx::Vector{Int64}) 
+
+    LA = length(Aidx)
+    Bidx = findall(x -> !(x in Aidx), 1:prod(system.V))
+    LB = length(Bidx)
+    Vext = LA + 2 * LB
+
+    LB == 0 && @error "Subsystem size should be smaller than system size"
+
+    sys_type = typeof(system)
+    NsX, NsY = system.Ns
+    Δτ = system.β / system.L
+    if sys_type <: BilayerHubbard
+        T = one_body_matrix_bilayer_hubbard(NsX, NsY, system.t, system.t′)
+        T′ = similar(T)
+
+        # rearrange matrices based on the partition
+        rearrange!(T′, T, Aidx, Bidx)
+
+        system.useFirstOrderTrotter ? Bk = exp(-T′ * Δτ) : Bk = exp(-T′ * Δτ / 2)
+        copyto!(system.Bk, Bk)
+        copyto!(system.Bk⁻¹, inv(Bk))
+
+        return ExtendedSystem{sys_type}(
+            system,
+            Aidx, LA, Bidx, LB, Vext
+        )
+    elseif sys_type <: IonicHubbard
+        if NsY == 1 
+            T, Δ = one_body_matrix_ionic_hubbard_1D(NsX, system.t, system.Δ)
+        else
+            T, Δ = one_body_matrix_ionic_hubbard_2D(NsX, NsY, system.t, system.Δ)
+        end
+        T′, Δ′ = similar(T), similar(Δ)
+
+        # rearrange matrices based on the partition
+        rearrange!(T′, T, Aidx, Bidx)
+        rearrange!(Δ′, Δ, Aidx, Bidx)
+
+        system.useFirstOrderTrotter ? Bk = exp(-T′ * Δτ) : Bk = exp(-T′ * Δτ / 2)
+        copyto!(system.Bk, Bk)
+        copyto!(system.Bk⁻¹, inv(Bk))
+        copyto!(system.BΔ, exp.(-Δ * Δτ))
+
+        return ExtendedSystem{sys_type}(
+            system,
             Aidx, LA, Bidx, LB, Vext
         )
     end

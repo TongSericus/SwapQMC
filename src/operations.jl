@@ -3,16 +3,19 @@
 """
 function run_full_propagation(
     auxfield::AbstractMatrix{Int64}, system::System, qmc::QMC, ws::LDRWorkspace{T,E}; 
-    isReverse::Bool = true,
-    K = qmc.K, si = qmc.stab_interval, 
-    K_interval = qmc.K_interval,
-    V = system.V,
-    B = [Matrix{Float64}(I, V, V), Matrix{Float64}(I, V, V)],
-    FC = Cluster(B = ldrs(B[1], 2 * K))
+    isReverse::Bool = true
 ) where {T, E}
+    K = qmc.K 
+    V = system.V
+    si = qmc.stab_interval
+    K_interval = qmc.K_interval
+
     # initialize partial matrix products
-    MatProd = Cluster(V, 2 * K)
+    Tb = eltype(system.auxfield)
+    B = [Matrix{Tb}(I, V, V), Matrix{Tb}(I, V, V)]
+    MatProd = Cluster(V, 2 * K, T = Tb)
     F = ldrs(B[1], 2)
+    FC = Cluster(B = ldrs(B[1], 2 * K))
 
     Bm = MatProd.B
     Bf = FC.B

@@ -8,7 +8,9 @@ end
 
 Base.prod(C::Cluster{T}, a::Vector{Int}) where T = @views prod(C.B[a])
 
-Cluster(Ns::Int, N::Int) = Cluster(B = [Matrix(1.0I, Ns, Ns) for _ in 1 : N])
+Cluster(Ns::Int, N::Int; T::DataType = Float64) = (T == Float64) ? 
+                                                Cluster(B = [Matrix((1.0I)(Ns)) for _ in 1 : N]) : 
+                                                Cluster(B = [Matrix(((1.0+0.0im)*I)(Ns)) for _ in 1 : N])
 Cluster(A::Factorization{T}, N::Int) where T = Cluster(B = [similar(A) for _ in 1 : N])
 
 ### Random walker definitions ###
@@ -17,7 +19,7 @@ abstract type GCWalker end
 # GC walker for Hubbard-type model where a fast rank-1 update is available,
 # could be regular, ionic, bilayer, etc.
 struct HubbardGCWalker{Ts<:Number, T<:Number, Fact<:Factorization{T}, E, C} <: GCWalker
-    α::Matrix{Float64}
+    α::Matrix{T}
 
     # Statistical weights of the walker, stored in the logarithmic form, while signs are the phases
     weight::Vector{Float64}
@@ -50,7 +52,7 @@ end
 function HubbardGCWalker(
     system::Hubbard, qmc::QMC;
     auxfield::Matrix{Int} = 2 * (rand(system.V, system.L) .< 0.5) .- 1, 
-    T::DataType = Float64
+    T::DataType = eltype(system.auxfield)
 )
     Ns = system.V
     k = qmc.stab_interval
@@ -63,7 +65,7 @@ function HubbardGCWalker(
     F, Bc, FC = run_full_propagation(auxfield, system, qmc, ws)
 
     Fτ = ldrs(G[1], 2)
-    Bl = Cluster(Ns, 2 * k)
+    Bl = Cluster(Ns, 2 * k, T = T)
 
     weight[1], sgn[1] = inv_IpA!(G[1], F[1], ws)
     weight[2], sgn[2] = inv_IpA!(G[2], F[2], ws)

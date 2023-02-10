@@ -22,7 +22,7 @@ end
     G ← G - α_{i, σ} / d_{i, i} * u * wᵀ
     where u = (I - G)e₁, w = Gᵀe₁
 """
-function update_G!(G::AbstractMatrix{T}, α::Float64, d::Float64, sidx::Int64, ws::LDRWorkspace{T, E}) where {T, E}
+function update_G!(G::AbstractMatrix{T}, α::Ta, d::Ta, sidx::Int64, ws::LDRWorkspace{T, E}) where {T, Ta, E}
     ImG = ws.M
     dG = ws.M′
     g = @view G[sidx, :]
@@ -45,7 +45,7 @@ end
 
     Compute G ← B * G * B⁻¹
 """
-function wrap_G!(G::AbstractMatrix{T}, B::AbstractMatrix{T}, ws::LDRWorkspace{T, E}) where {T, E}
+function wrap_G!(G::AbstractMatrix{T}, B::AbstractMatrix{TB}, ws::LDRWorkspace{T, E}) where {T, TB, E}
     mul!(ws.M, B, G)
     
     B⁻¹ = ws.M′
@@ -54,7 +54,7 @@ function wrap_G!(G::AbstractMatrix{T}, B::AbstractMatrix{T}, ws::LDRWorkspace{T,
     mul!(G, ws.M, B⁻¹)
 end
 
-function wrap_G!(G::AbstractMatrix{T}, B::AbstractMatrix{T}, B⁻¹::AbstractMatrix{T}, ws::LDRWorkspace{T, E}) where {T, E}
+function wrap_G!(G::AbstractMatrix{T}, B::AbstractMatrix{TB}, B⁻¹::AbstractMatrix{TB}, ws::LDRWorkspace{T, E}) where {T, TB, E}
     mul!(ws.M, B, G)
     mul!(G, ws.M, B⁻¹)
 end

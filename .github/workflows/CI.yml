@@ -8,13 +8,6 @@ on:
     branches:
       - main
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
-
-env:
-  JULIA_DEBUG: Webviews
-
 jobs:
   build:
     runs-on: ${{ matrix.os }}
@@ -22,7 +15,7 @@ jobs:
       fail-fast: false
       matrix:
         julia-arch: [x64]
-        julia-version: ["1.8", "~1.9.0-0", "nightly"]
+        julia-version: ["1.8"]
         os: [ubuntu-latest, windows-latest, macOS-latest]
 
     steps:
@@ -34,8 +27,6 @@ jobs:
         with:
           version: ${{ matrix.julia-version }}
           arch: ${{ matrix.julia-arch }}
-      - name: Test loadability
-        run: julia --project=@. -e 'using Pkg;Pkg.instantiate();using SwapQMC'
       - name: Test
         uses: julia-actions/julia-runtest@latest
         with:

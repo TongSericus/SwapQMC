@@ -61,7 +61,26 @@ function one_body_matrix_bilayer_hubbard(NsX::Int64, NsY::Int64, t::Float64, t�
     return T
 end
 
-function one_body_matrix_ionic_hubbard_1D()
+function one_body_matrix_ionic_hubbard_1D(Ns::Int64, t::Float64, δ::Float64)
+    T = zeros(Ns, Ns)
+
+    # staggered potential is a 1D chain
+    Δ = zeros(Ns)
+
+    T = zeros(Ns, Ns)
+
+    for i =  1 : Ns
+        # indices of nearest neighbours (nn) of i
+        nn_lf = mod(i, Ns) + 1
+        nn_rg = mod(i - 2, Ns) + 1
+
+        T[i, nn_lf] = -t
+        T[i, nn_rg] = -t
+
+        Δ[i] = (-1)^(i) * δ / 2
+    end
+
+    return T, Δ
 end
 
 function one_body_matrix_ionic_hubbard_2D(NsX::Int64, NsY::Int64, t::Float64, δ::Float64)
@@ -98,27 +117,29 @@ function one_body_matrix_ionic_hubbard_2D(NsX::Int64, NsY::Int64, t::Float64, δ
 end
 
 ### Auxiliary-field Matrix ###
+"""
+    Hubbard HS field matrix generator
+"""
 function auxfield_matrix_hubbard(
     σ::AbstractArray{Int64}, auxfield::Vector{T};
     V₊ = zeros(T, length(σ)),
     V₋ = zeros(T, length(σ)),
     isComplexHST::Bool = false
 ) where T
-    """
-        Hubbard HS field matrix generator
-    """
-    if isComplexHST
+    isComplexHST && begin
         for i in eachindex(σ)
-            isone(σ[i]) ? (idx₊ = 1; idx₋ = 1) : (idx₊ = 2; idx₋ = 2)
+            isone(σ[i]) ? (idx₊ = idx₋ = 1) : (idx₊ = idx₋ = 2)
             V₊[i] = auxfield[idx₊]
             V₋[i] = auxfield[idx₋]
         end
-    else
-        for i in eachindex(σ)
-            isone(σ[i]) ? (idx₊ = 1; idx₋ = 2) : (idx₊ = 2; idx₋ = 1)
-            V₊[i] = auxfield[idx₊]
-            V₋[i] = auxfield[idx₋]
-        end
+        
+        return V₊, V₋
+    end
+    
+    for i in eachindex(σ)
+        isone(σ[i]) ? (idx₊ = 1; idx₋ = 2) : (idx₊ = 2; idx₋ = 1)
+        V₊[i] = auxfield[idx₊]
+        V₋[i] = auxfield[idx₋]
     end
     
     return V₊, V₋
@@ -136,7 +157,11 @@ function imagtime_propagator!(
 ) where {T<:Number}
     Bₖ = system.Bk
 
-    auxfield_matrix_hubbard(σ, system.auxfield, V₊=system.V₊, V₋=system.V₋)
+    auxfield_matrix_hubbard(
+        σ, system.auxfield, 
+        V₊=system.V₊, V₋=system.V₋,
+        isComplexHST = system.useComplexHST
+    )
     V₊, V₋ = system.V₊, system.V₋
 
     if useFirstOrderTrotter
@@ -165,7 +190,11 @@ function imagtime_propagator!(
     Bₖ = system.Bk
     BΔ = system.BΔ
 
-    auxfield_matrix_hubbard(σ, system.auxfield, V₊=system.V₊, V₋=system.V₋)
+    auxfield_matrix_hubbard(
+        σ, system.auxfield, 
+        V₊=system.V₊, V₋=system.V₋,
+        isComplexHST = system.useComplexHST
+    )
     V₊, V₋ = system.V₊, system.V₋
     @. V₊ *= BΔ
     @. V₋ *= BΔ

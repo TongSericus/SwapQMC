@@ -16,12 +16,14 @@ LinearAlgebra.eigvals(F::LDR{T, E}) where {T, E} = eigvals(Diagonal(F.d) * F.R *
     Matrix Operations for Reduced Density Matrix
 """
 
+"""
+    det_UpV(U::LDR, V::LDR, ws::LDRWorkspace)
+
+    Compute the numerically stable determinant G=det(U+V), where U and V are represented by factorizations,
+    using the formula
+    G = det(U + V) = det(Lᵤ * Dᵤ₊ * M * Dᵥ₊ * Rᵥ) with |det(Lᵤ)| = |det(Rᵥ)| = 1
+"""
 function det_UpV(U::LDR{T,E}, V::LDR{T,E}, ws::LDRWorkspace{T,E}) where {T,E}
-    """
-        Compute the numerically stable determinant G=det(U+V), where U and V are represented by factorizations,
-        using the formula
-        G = det(U + V) = det(Lᵤ * Dᵤ₊ * M * Dᵥ₊ * Rᵥ) with |det(Lᵤ)| = |det(Rᵥ)| = 1
-    """
     Lᵤ = U.L
     dᵤ = U.d
     Rᵤ = U.R
@@ -89,10 +91,12 @@ function det_UpV(U::LDR{T,E}, V::LDR{T,E}, ws::LDRWorkspace{T,E}) where {T,E}
     return real(logdetUpV), sgndetUpV
 end
 
+"""
+    ImA!(G, A, ws)
+        
+    Stable calculation of G = I - A
+"""
 function ImA!(G::LDR{T,E}, A::LDR{T,E}, ws::LDRWorkspace{T,E}) where {T,E}
-    """
-        Compute G=I-A as a factorization stablely
-    """
     Lₐ = A.L
     dₐ = A.d
     Rₐ = A.R
@@ -201,10 +205,8 @@ function expand!(U::LDR{T,E}, V::LDR{T,E}, ridx::Int) where {T, E}
     ridx == 1 ? (idx = Lv) : (idx = Lv - δL)
 
     # find the last diagonal value that is larger than 1
-    lᵥ = 0
-    while V.d[lᵥ+1] > 1
-        lᵥ += 1
-    end
+    lᵥ = findfirst(x -> x < 1, dᵥ)
+    lᵥ === nothing ? lᵥ = length(dᵥ) : lᵥ -= 1
 
     reset!(U)
 
