@@ -51,7 +51,7 @@ end
 """
 function HubbardGCWalker(
     system::Hubbard, qmc::QMC;
-    auxfield::Matrix{Int} = 2 * (rand(system.V, system.L) .< 0.5) .- 1, 
+    auxfield::Matrix{Int} = rand([-1, 1], system.V, system.L),
     T::DataType = eltype(system.auxfield)
 )
     Ns = system.V
@@ -105,7 +105,7 @@ function update!(walker::HubbardGCWalker; identicalSpin::Bool = false)
 
         return nothing
     end
-    
+
     weight[2], sgn[2] = inv_IpA!(G[2], F[2], walker.ws)
 
     @. weight *= -1
