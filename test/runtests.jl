@@ -153,4 +153,47 @@ end
     # testing G
     @test G[1] ≈ swapper.G[1]
     @test G[2] ≈ swapper.G[2]
+
+    ### Testing Bilayer Hubbard model with complex HS transform ###
+    # Same as above
+    system = BilayerHubbard(
+        # (Nx, Ny), (N_up, N_dn)
+        (4, 4), (8, 8),
+        # t, t′, U
+        1.0, 1.0, 4.0,
+        # μ
+        2.0,
+        # β, L
+        6.0, 60,
+        # auxiliary field is coupled to charge
+        useComplexHST = true
+    )
+    qmc = QMC(
+        system,
+        # number of warm-ups, samples and measurement interval
+        5, Int64(5), 5,
+        # stablization and update interval
+        5, 5
+    )
+
+    walker = HubbardGCWalker(system, qmc)
+    G = test_regular_sweep(system, qmc, walker)
+
+    # testing G
+    @test walker.G[1] ≈ G[1]
+
+    ## Swap sweep ##
+    # create a bipartition
+    Aidx = collect(1:8)
+    extsys = ExtendedSystem(system, Aidx)
+
+    walker = HubbardGCWalker(system, qmc)
+    walker′ = HubbardGCWalker(system, qmc)
+
+    swapper = HubbardGCSwapper(extsys, walker, walker′)
+
+    G = test_swap_sweep(extsys, qmc, walker, swapper)
+
+    # testing G
+    @test G[1] ≈ swapper.G[1]
 end
