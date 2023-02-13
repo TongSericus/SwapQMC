@@ -66,8 +66,9 @@ function run_full_propagation(
     isReverse::Bool = true,
     K = div(length(MatProd.B), 2),
     V = size(MatProd.B[1]),
-    F = ldrs(Matrix(1.0I, V), 2),
-    FC = Cluster(B = ldrs(Matrix(1.0I, V), 2 * K))
+    i = eltype(ws.M) <: Real ? 1.0 : 1.0+0.0im,
+    F = ldrs(Matrix(i*I, V), 2),
+    FC = Cluster(B = ldrs(Matrix(i*I, V), 2 * K))
 ) where {C, T, E}
 
     Bm = MatProd.B
@@ -91,6 +92,38 @@ function run_full_propagation(
 
         lmul!(Bm[i], F[1], ws)
         lmul!(Bm[K + i], F[2], ws)
+    end
+    
+    return F
+end
+
+function run_full_propagation_oneside(
+    MatProd::Cluster{C}, ws::LDRWorkspace{T,E};
+    isReverse::Bool = true,
+    K = div(length(MatProd.B), 2),
+    V = size(MatProd.B[1]),
+    i = eltype(ws.M) <: Real ? 1.0 : 1.0+0.0im,
+    F = ldr(Matrix(i*I, V)),
+    FC = Cluster(B = ldrs(Matrix(i*I, V), K))
+) where {C, T, E}
+
+    Bm = MatProd.B
+    Bf = FC.B
+
+    isReverse && begin 
+        for i in K:-1:1
+            copyto!(Bf[i], F)
+
+            rmul!(F, Bm[i], ws)
+        end
+
+        return F
+    end
+
+    for i in 1:K
+        copyto!(Bf[i], F)
+
+        lmul!(Bm[i], F, ws)
     end
     
     return F

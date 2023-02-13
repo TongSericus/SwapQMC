@@ -18,12 +18,12 @@ abstract type GCWalker end
 
 # GC walker for Hubbard-type model where a fast rank-1 update is available,
 # could be regular, ionic, bilayer, etc.
-struct HubbardGCWalker{Ts<:Number, T<:Number, Fact<:Factorization{T}, E, C} <: GCWalker
+struct HubbardGCWalker{T<:Number, Fact<:Factorization{T}, E, C} <: GCWalker
     α::Matrix{T}
 
     # Statistical weights of the walker, stored in the logarithmic form, while signs are the phases
     weight::Vector{Float64}
-    sign::Vector{Ts}
+    sign::Vector{T}
 
     auxfield::Matrix{Int64}
     F::Vector{Fact}
@@ -70,8 +70,13 @@ function HubbardGCWalker(
     weight[1], sgn[1] = inv_IpA!(G[1], F[1], ws)
     weight[2], sgn[2] = inv_IpA!(G[2], F[2], ws)
 
-    α = system.auxfield[1] / system.auxfield[2]
-    α = [α - 1 1/α - 1; 1/α - 1 α - 1]
+    if system.useComplexHST
+        α = system.auxfield[1] / system.auxfield[2]
+        α = [α - 1 1/α - 1; α - 1 1/α - 1]
+    else
+        α = system.auxfield[1] / system.auxfield[2]
+        α = [α - 1 1/α - 1; 1/α - 1 α - 1]
+    end
 
     return HubbardGCWalker(α, -weight, sgn, auxfield, F, ws, G, FC, Fτ, Bl, Bc)
 end
@@ -81,7 +86,7 @@ end
 
     Update the Green's function and weight of the walker
 """
-function update!(walker::HubbardGCWalker)
+function update!(walker::HubbardGCWalker; identicalSpin::Bool = false)
     """
         Update the Green's function, weight of the walker
     """
@@ -91,6 +96,16 @@ function update!(walker::HubbardGCWalker)
     F = walker.F
 
     weight[1], sgn[1] = inv_IpA!(G[1], F[1], walker.ws)
+    identicalSpin && begin
+        weight[2] = weight[1]
+        sign[2] = sign[1]
+        @. weight *= -1
+
+        copyto!(G[2], G[1])
+
+        return nothing
+    end
+    
     weight[2], sgn[2] = inv_IpA!(G[2], F[2], walker.ws)
 
     @. weight *= -1
@@ -101,15 +116,15 @@ end
 ### Swap walker definitions ###
 abstract type Swapper end
 
-struct HubbardGCSwapper{Ts<:Number, T<:Number, E<:Number, Fact<:Factorization{T}} <: Swapper
+struct HubbardGCSwapper{T<:Number, E<:Number, Fact<:Factorization{T}} <: Swapper
     weight::Vector{Float64}
-    sign::Vector{Ts}
+    sign::Vector{T}
     F::Vector{Fact}
     ws::LDRWorkspace{T, E}
     G::Vector{Matrix{T}}
 
     # preallocated temporal data
-    B::Matrix{Float64}
+    B::Matrix{T}
     Bk::Vector{Matrix{Float64}}
     Bk⁻¹::Vector{Matrix{Float64}}
     C::Vector{Fact}
@@ -129,12 +144,13 @@ function HubbardGCSwapper(
     G = [Matrix{T}(1.0I, V, V), Matrix{T}(1.0I, V, V)]
     
     # expand Bk and Bk⁻¹
+    Tk = eltype(system.Bk)
     LA = extsys.LA
     LB = extsys.LB
-    Bk = [Matrix{T}(1.0I, V, V), Matrix{T}(1.0I, V, V)]
+    Bk = [Matrix{Tk}(1.0I, V, V), Matrix{Tk}(1.0I, V, V)]
     expand!(Bk[1], system.Bk, LA, LB, 1)
     expand!(Bk[2], system.Bk, LA, LB, 2)
-    Bk⁻¹ = [Matrix{T}(1.0I, V, V), Matrix{T}(1.0I, V, V)]
+    Bk⁻¹ = [Matrix{Tk}(1.0I, V, V), Matrix{Tk}(1.0I, V, V)]
     expand!(Bk⁻¹[1], system.Bk⁻¹, LA, LB, 1)
     expand!(Bk⁻¹[2], system.Bk⁻¹, LA, LB, 2)
 
@@ -170,7 +186,7 @@ end
 
     Update the Green's function and weight of the swapper
 """
-function update!(swapper::HubbardGCSwapper)
+function update!(swapper::HubbardGCSwapper; identicalSpin::Bool = false)
     weight = swapper.weight
     sign = swapper.sign
     G = swapper.G
@@ -178,6 +194,16 @@ function update!(swapper::HubbardGCSwapper)
     F = swapper.F
 
     weight[1], sign[1] = inv_IpA!(G[1], F[1], swapper.ws)
+    identicalSpin && begin
+        weight[2] = weight[1]
+        sign[2] = sign[1]
+        @. weight *= -1
+
+        copyto!(G[2], G[1])
+
+        return nothing
+    end
+
     weight[2], sign[2] = inv_IpA!(G[2], F[2], swapper.ws)
 
     @. weight *= -1
