@@ -51,7 +51,8 @@ struct BilayerHubbard{T} <: Hubbard
         # see PRE 94, 063306 (2016) for explanations
         if useComplexHST
             γ = acosh(exp(-Δτ * U / 2) + 0im)
-            auxfield = [exp(-γ - Δτ * U / 2), exp(γ - Δτ * U / 2)]
+            # use symmetric Hubbard potential
+            auxfield = [exp(γ), exp(-γ)]
             sys_type = ComplexF64
         else
             γ = atanh(sqrt(tanh(Δτ * U / 4)))
@@ -132,8 +133,9 @@ struct IonicHubbard{T} <: Hubbard
         # see PRE 94, 063306 (2016) for explanations
         if useComplexHST
             # HS field is coupled to charge, which preserves SU(2) symmetry
-            γ = acosh(complex(exp(-Δτ * U / 2)))
-            auxfield = [exp(γ / 2 - Δτ * U / 4), exp(-γ / 2 - Δτ * U / 4)]
+            γ = acosh(exp(-Δτ * U / 2) + 0im)
+            # use symmetric Hubbard potential
+            auxfield = [exp(γ), exp(-γ)]
             sys_type = ComplexF64
         else
             # HS field is coupled to spin

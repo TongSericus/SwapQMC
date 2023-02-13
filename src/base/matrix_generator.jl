@@ -178,6 +178,31 @@ function imagtime_propagator!(
     return nothing
 end
 
+function imagtime_propagator!(
+    B::AbstractMatrix{T},
+    σ::AbstractArray{Int64}, system::BilayerHubbard;
+    useFirstOrderTrotter::Bool = system.useFirstOrderTrotter,
+    tmpmat = similar(B₊)
+) where {T<:Number}
+    Bₖ = system.Bk
+
+    auxfield_matrix_hubbard(
+        σ, system.auxfield, 
+        V₊=system.V₊, V₋=system.V₋,
+        isComplexHST = system.useComplexHST
+    )
+    V₊ = system.V₊
+
+    if useFirstOrderTrotter
+        mul!(B, Bₖ, Diagonal(V₊))
+    else
+        mul!(tmpmat, Diagonal(V₊), Bₖ)
+        mul!(B, Bₖ, tmpmat)
+    end
+
+    return nothing
+end
+
 """
     Compute the propagator matrix for Ionic Hubbard Model
 """

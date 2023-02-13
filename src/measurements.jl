@@ -22,9 +22,10 @@ struct EtgData{T, E}
     ws::LDRWorkspace{T, E}
 end
 
-function EtgData(extsys::ExtendedSystem; T::DataType = Float64)
+function EtgData(extsys::ExtendedSystem)
     LA = extsys.LA
 
+    T = eltype(extsys.system.auxfield)
     HA₁, HA₂, GA₁, GA₂, ImGA₁, ImGA₂ = ldrs(zeros(T, LA, LA), 6)
     ws = ldr_workspace(HA₁)
     P = zeros(ComplexF64, LA + 1, LA)
