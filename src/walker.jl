@@ -98,7 +98,7 @@ function update!(walker::HubbardGCWalker; identicalSpin::Bool = false)
     weight[1], sgn[1] = inv_IpA!(G[1], F[1], walker.ws)
     identicalSpin && begin
         weight[2] = weight[1]
-        sign[2] = sign[1]
+        sgn[2] = sgn[1]
         @. weight *= -1
 
         copyto!(G[2], G[1])

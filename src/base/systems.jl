@@ -190,7 +190,7 @@ function rearrange!(U::AbstractMatrix, V::AbstractMatrix, Aidx, Bidx)
     @views copyto!(U[1:LA, 1:LA], V[Aidx, Aidx])
     @views copyto!(U[1:LA, LA+1:end], V[Aidx, Bidx])
     @views copyto!(U[LA+1:end, 1:LA], V[Bidx, Aidx])
-    @views copyto!(U[LA+1:end, LA+1:end], V[Aidx, Aidx])
+    @views copyto!(U[LA+1:end, LA+1:end], V[Bidx, Bidx])
 end
 
 function rearrange!(U::AbstractVector, V::AbstractVector, Aidx, Bidx)
