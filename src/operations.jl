@@ -1,3 +1,96 @@
+### Basic operations ###
+"""
+    compute_Metropolis_ratio(G, α, i, sidx)
+
+    Compute the ratio of determinants using Green's function
+    det(M_new) / det(M_old) = 1 + α * (1 - G[i, i])
+    if only the ith auxiliary field is flipped
+"""
+function compute_Metropolis_ratio(
+    G::AbstractArray{T}, α::Ta, i::Int, sidx::Int
+) where {T, Ta}
+    d_up = 1 + α[1, i] * (1 - G[1][sidx, sidx])
+    d_dn = 1 + α[2, i] * (1 - G[2][sidx, sidx])
+    r = abs(d_up * d_dn)
+
+    return r, d_up, d_dn
+end
+
+"""
+    Compute the ratio of determinants using Green's function, with
+    the auxiliary field being complex and spin-up and spin-down channel
+    are identical (hence only a single G is required)
+"""
+function compute_Metropolis_ratio(
+    G::AbstractMatrix, α::Ta, i::Int, sidx::Int
+) where Ta
+    γ = α[1, i]
+    d = γ * (1 - G[sidx, sidx])
+    # accept ratio
+    r = (1 + d)^2 / (γ + 1)
+
+    return real(r), d+1
+end
+
+"""
+    kron!(C, α, a, b)
+
+    In-place operation of C = α * u * wᵀ
+"""
+function Base.kron!(C::AbstractMatrix, α::Number, a::AbstractVector, b::AbstractVector)
+    for i in eachindex(a)
+        for j in eachindex(a)
+            @inbounds C[j, i] = α * a[j] * b[i]
+        end
+    end
+end
+
+"""
+    update_G!(G, α, d, sidx, ws)
+
+    Fast update the Green's function at the ith site:
+    G ← G - α_{i, σ} / d_{i, i} * u * wᵀ
+    where u = (I - G)e₁, w = Gᵀe₁
+"""
+function update_G!(G::AbstractMatrix{T}, α::Ta, d::Ta, sidx::Int64, ws::LDRWorkspace{T, E}) where {T, Ta, E}
+    ImG = ws.M
+    dG = ws.M′
+    g = @view G[sidx, :]
+    Img = @view ImG[:, sidx]
+
+    # compute I - G
+    for i in eachindex(g)
+        @inbounds Img[i] = -G[i, sidx]
+    end
+    Img[sidx] += 1
+
+    # compute (I - G)eᵢ * Gᵀeᵢ
+    @views kron!(dG, α / d, Img, g)
+
+    G .-= dG
+end
+
+"""
+    wrap_G!(G, B, ws)
+
+    Compute G ← B * G * B⁻¹
+"""
+function wrap_G!(G::AbstractMatrix{T}, B::AbstractMatrix{TB}, ws::LDRWorkspace{T, E}) where {T, TB, E}
+    mul!(ws.M, B, G)
+    
+    B⁻¹ = ws.M′
+    copyto!(B⁻¹, B)
+    inv_lu!(B⁻¹, ws.lu_ws)
+    mul!(G, ws.M, B⁻¹)
+end
+
+function wrap_G!(G::AbstractMatrix{T}, B::AbstractMatrix{TB}, B⁻¹::AbstractMatrix{TB}, ws::LDRWorkspace{T, E}) where {T, TB, E}
+    mul!(ws.M, B, G)
+    mul!(G, ws.M, B⁻¹)
+end
+
+flip_HSField(σ::Int) = Int64((σ + 1) / 2 + 1)
+
 """
     Propagate the full space-time lattice
 """

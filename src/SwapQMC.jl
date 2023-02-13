@@ -17,6 +17,7 @@ module SwapQMC
     include("./walker.jl")
     include("./operations.jl")
     include("./propagation.jl")
+    include("./propagation_replica.jl")
 
     export TunableHubbard, TunableHubbardWalker,
            MuTuner, dynamical_tuning
