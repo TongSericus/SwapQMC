@@ -72,8 +72,8 @@ function measure_EE!(
     Pn2₊ = etgm.Pn2₊
     Pn2₋ = etgm.Pn2₋
 
-    update!(walker₁)
-    update!(walker₂)
+    update!(walker₁, identicalSpin=extsys.system.useComplexHST)
+    update!(walker₂, identicalSpin=extsys.system.useComplexHST)
 
     G₁ = walker₁.G
     G₂ = walker₂.G

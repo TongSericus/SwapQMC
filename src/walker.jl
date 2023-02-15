@@ -218,7 +218,8 @@ end
 """
 function fill!(
     swapper::HubbardGCSwapper, 
-    walker₁::HubbardGCWalker, walker₂::HubbardGCWalker
+    walker₁::HubbardGCWalker, walker₂::HubbardGCWalker;
+    identicalSpin::Bool = false
 )
     F = swapper.F
     C = swapper.C
@@ -230,6 +231,13 @@ function fill!(
     expand!(L, walker₂.F[1], 2)
     copyto!(C[1], L)
     lmul!(L, F[1], ws)
+
+    identicalSpin && begin
+        update!(swapper, identicalSpin=true)
+
+        return nothing
+    end
+
     # expand F in the spin-down part and then merge
     expand!(F[2], walker₁.F[2], 1)
     expand!(L, walker₂.F[2], 2)
