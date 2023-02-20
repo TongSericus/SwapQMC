@@ -212,11 +212,11 @@ function update!(swapper::HubbardGCSwapper; identicalSpin::Bool = false)
 end
 
 """
-    fill!(s::Swapper, a::Walker, b::Walker)
+    fill_swapper!(s::Swapper, a::Walker, b::Walker)
 
     Fill a (potentially empty) swapper with two walkers
 """
-function fill!(
+function fill_swapper!(
     swapper::HubbardGCSwapper, 
     walker₁::HubbardGCWalker, walker₂::HubbardGCWalker;
     identicalSpin::Bool = false

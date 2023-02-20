@@ -116,9 +116,10 @@ end
 """
 function measure_EE(
     walker₁::HubbardGCWalker, walker₂::HubbardGCWalker,
-    swapper::HubbardGCSwapper
+    swapper::HubbardGCSwapper;
+    isIdenticalSpin::Bool = false
 )
-    fill!(swapper, walker₁, walker₂)
+    fill_swapper!(swapper, walker₁, walker₂, identicalSpin=isIdenticalSpin)
     p = sum(swapper.weight) - sum(walker₁.weight) - sum(walker₂.weight)
 
     return min(1, exp(p))
@@ -155,6 +156,7 @@ function poissbino(
     P::AbstractMatrix{Tp} = zeros(eltype(ϵ), Ns + 1, Ns)
 ) where {T<:Number, Tp<:Number}
     # Initialization
+    fill!(P, zero(eltype(P)))
     P[1, 1] = ν2[1]
     P[2, 1] = ν1[1]
     # iteration over trials
