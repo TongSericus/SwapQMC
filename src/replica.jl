@@ -26,6 +26,7 @@ struct Replica{W<:GCWalker, T, E}
     # two vectors used in computing the ratio and updating the Grover inverse
     a::AbstractVector{T}
     b::AbstractVector{T}
+    t::AbstractVector{T}    # a temporal vector for storage
 
     # LDR Workspace
     ws::LDRWorkspace{T, E}
@@ -44,6 +45,7 @@ struct Replica{W<:GCWalker, T, E}
 
         a = zeros(T, LA)
         b = zeros(T, LA)
+        t = zeros(T, LA)
 
         Im2GA = I - 2 * walker2.G[1][1:LA, 1:LA]
         
@@ -53,7 +55,7 @@ struct Replica{W<:GCWalker, T, E}
             G₀1, G₀2, 
             GA⁻¹, Ref(logdetGA), Ref(sgnlogdetGA), 
             Im2GA, 
-            a, b, ws
+            a, b, t, ws
         )
     end
 end

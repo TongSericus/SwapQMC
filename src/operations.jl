@@ -84,7 +84,7 @@ function wrap_G!(G::AbstractMatrix{T}, B::AbstractMatrix{TB}, ws::LDRWorkspace{T
     mul!(G, ws.M, B⁻¹)
 end
 
-function wrap_G!(G::AbstractMatrix{T}, B::AbstractMatrix{TB}, B⁻¹::AbstractMatrix{TB}, ws::LDRWorkspace{T, E}) where {T, TB, E}
+function wrap_G!(G::AbstractMatrix{T}, B::Tb, B⁻¹::Tb, ws::LDRWorkspace{T, E}) where {T, Tb, E}
     mul!(ws.M, B, G)
     mul!(G, ws.M, B⁻¹)
 end
@@ -226,33 +226,49 @@ end
 function compute_Metropolis_ratio(
     system::System,
     replica::Replica{W, ComplexF64}, walker::W,
-    α::Ta, sidx::Int
+    α::Ta, sidx::Int, ridx::Int
 ) where {W, Ta}
     # set alias
     Aidx = replica.Aidx
     GA⁻¹ = replica.GA⁻¹
     a = replica.a
     b = replica.b
-    Gτ = walker.G[1] 
+    Gτ = walker.G[1][sidx, sidx]
     G0τ = walker.G0τ[1]
     Gτ0 = walker.Gτ0[1]
-    Bk = system.Bk
-    Bk⁻¹ = system.Bk⁻¹
 
     # compute Γ = a * bᵀ
-    BG0τ = walker.ws.M
-    mul!(BG0τ, Bk⁻¹, G0τ)
-    @views mul!(a, GA⁻¹, BG0τ[Aidx, sidx])
-    #@views mul!(a, GA⁻¹, G0τ[Aidx, sidx])
-
-    Gτ0B = walker.ws.M
-    mul!(Gτ0B, Gτ0, Bk)
-    @views transpose_mul!(b, Gτ0B[sidx, Aidx], replica.Im2GA)
-    #@views transpose_mul!(b, Gτ0[sidx, Aidx], replica.Im2GA)
-
+    system.useFirstOrderTrotter ? begin
+                                    @views mul!(a, GA⁻¹, G0τ[Aidx, sidx])
+                                    @views transpose_mul!(b, Gτ0[sidx, Aidx], replica.Im2GA)
+                                end :
+                                begin
+                                    Bk = system.Bk
+                                    Bk⁻¹ = system.Bk⁻¹
+                                    
+                                    # update the first replica
+                                    ridx == 1 ? begin
+                                        BG0τ = replica.t
+                                        @views mul!(BG0τ, Bk⁻¹[Aidx, :], G0τ[:, sidx])
+                                        @views mul!(a, GA⁻¹, BG0τ)
+                                    
+                                        Gτ0B = replica.t
+                                        @views transpose_mul!(Gτ0B, Gτ0[sidx, :], Bk[:, Aidx])
+                                        @views transpose_mul!(b, Gτ0B, replica.Im2GA)
+                                    end : 
+                                    # update the second replica
+                                    begin
+                                        t = replica.t
+                                        @views mul!(a, Bk⁻¹[Aidx, :], G0τ[:, sidx])
+                                        @views mul!(t, replica.Im2GA, a)
+                                        @views mul!(a, GA⁻¹, t)
+                                    
+                                        @views transpose_mul!(b, Gτ0[sidx, :], Bk[:, Aidx])
+                                    end
+                                end
     Γ = transpose(a) * b
 
-    d = 1 + α * (1 - Gτ[sidx, sidx] - Γ)
+    d = 1 + α * (1 - Gτ - Γ)
     # accept ratio
     r = d^2 / (α+1)
 
@@ -317,9 +333,9 @@ function update_invGA!(replica::Replica{W, ComplexF64}, ρ::T) where {W, T}
     GA⁻¹ = replica.GA⁻¹
     a = replica.a
     b = replica.b
+    bᵀ = replica.t
     dGA⁻¹ = replica.ws.M
 
-    @views bᵀ = replica.ws.M′[:, 1]
     @views transpose_mul!(bᵀ, b, GA⁻¹)
 
     kron!(dGA⁻¹, ρ, a, bᵀ)
@@ -337,8 +353,8 @@ end
 """
 function wrap_Gs!(
     Gτ::AbstractMatrix{T}, Gτ0::AbstractMatrix{T}, G0τ::AbstractMatrix{T},
-    B::AbstractMatrix{TB}, ws::LDRWorkspace{T, E}
-) where {T, TB, E}
+    B::Tb, ws::LDRWorkspace{T, E}
+) where {T, Tb, E}
     # update G(τ)
     mul!(ws.M, B, Gτ)
     B⁻¹ = ws.M′

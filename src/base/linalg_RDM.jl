@@ -239,11 +239,13 @@ end
 """
     Compute C = Aᵀ * B
 """
-function transpose_mul!(C::AbstractVector{T}, A::AbstractVector{T}, B::AbstractMatrix{T}) where T
-    for i in eachindex(A)
+function transpose_mul!(C::AbstractVector, A::AbstractVector, B::AbstractMatrix)
+    @inbounds @fastmath for i in eachindex(C)
+        Ci = zero(eltype(C))
         for j in eachindex(A)
-            @inbounds C[i] += A[j] * B[j, i]
+            Ci += A[j] * B[j, i]
         end
+        C[i] = Ci
     end
 end
 

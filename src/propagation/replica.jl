@@ -3,7 +3,7 @@
 ################################################################################
 function update_cluster!(
     walker::W, replica::Replica{W, ComplexF64, Float64},
-    system::Hubbard, qmc::QMC, cidx::Int
+    system::Hubbard, qmc::QMC, cidx::Int, ridx::Int
 ) where W
     # set alias
     k = qmc.K_interval[cidx]
@@ -30,7 +30,7 @@ function update_cluster!(
 
         for j in 1 : system.V
             # compute ratios of determinants through G
-            r, γ, ρ = compute_Metropolis_ratio(system, replica, walker, α[1, σ[j]], j)
+            r, γ, ρ = compute_Metropolis_ratio(system, replica, walker, α[1, σ[j]], j, ridx)
 
             if rand() < r / (1 + r) # use heat-bath ratio
                 # accept the move, update the field and the Green's function
@@ -95,7 +95,7 @@ function sweep!(
 
     @inbounds for cidx in 1 : K
         # then update a cluster of fields
-        update_cluster!(walker, replica, system, qmc, cidx)
+        update_cluster!(walker, replica, system, qmc, cidx, ridx)
 
         # multiply the updated slice to the right factorization
         lmul!(Bc[cidx], Bτ, ws)
@@ -103,8 +103,13 @@ function sweep!(
         # recompute the Grover inverse
         mul!(tmpM[1], tmpL[cidx], Bτ, ws)
         inv_IpA!(G₀, tmpM[1], ws)
-        logdetGA[], sgnlogdetGA[] = @views inv_Grover!(replica.GA⁻¹, G₀[Aidx, Aidx], G₀′[Aidx, Aidx], replica.ws)
-
+        ridx == 1 ? begin
+                logdetGA[], sgnlogdetGA[] =  @views inv_Grover!(replica.GA⁻¹, G₀[Aidx, Aidx], G₀′[Aidx, Aidx], replica.ws)
+            end :
+            begin
+                logdetGA[], sgnlogdetGA[] =  @views inv_Grover!(replica.GA⁻¹, G₀′[Aidx, Aidx], G₀[Aidx, Aidx], replica.ws)
+            end
+        
         # G needs to be periodically recomputed from scratch
         mul!(tmpM[1], Bτ, tmpL[cidx], ws)
         update!(walker, identicalSpin=true)
@@ -125,7 +130,7 @@ function sweep!(
 
     # switch the matrix I - 2*GA to the next replica
     Im2GA = replica.Im2GA
-    for i in eachindex(Im2GA)
+    for i in CartesianIndices(Im2GA)
         @inbounds Im2GA[i] = -2 * G₀[i]
     end
     Im2GA[diagind(Im2GA)] .+= 1
