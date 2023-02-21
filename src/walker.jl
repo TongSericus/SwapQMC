@@ -30,6 +30,10 @@ struct HubbardGCWalker{T<:Number, Fact<:Factorization{T}, E, C} <: GCWalker
     ws::LDRWorkspace{T, E}
     G::Vector{Matrix{T}}
 
+    # imaginary-time-displaced Green's
+    Gτ0::Vector{Matrix{T}}
+    G0τ::Vector{Matrix{T}}
+
     ### Temporal data to avoid memory allocations ###
     # All partial factorizations
     FC::Cluster{Fact}
@@ -60,7 +64,10 @@ function HubbardGCWalker(
     weight = zeros(Float64, 2)
     sgn = zeros(T, 2)
 
-    G = [Matrix{T}(1.0I, Ns, Ns), Matrix{T}(1.0I, Ns, Ns)]
+    G   = [Matrix{T}(1.0I, Ns, Ns), Matrix{T}(1.0I, Ns, Ns)]
+    Gτ0 = [Matrix{T}(1.0I, Ns, Ns), Matrix{T}(1.0I, Ns, Ns)]
+    G0τ = [Matrix{T}(1.0I, Ns, Ns), Matrix{T}(1.0I, Ns, Ns)]
+
     ws = ldr_workspace(G[1])
     F, Bc, FC = run_full_propagation(auxfield, system, qmc, ws)
 
@@ -70,6 +77,13 @@ function HubbardGCWalker(
     weight[1], sgn[1] = inv_IpA!(G[1], F[1], ws)
     weight[2], sgn[2] = inv_IpA!(G[2], F[2], ws)
 
+    # G(τ=0, 0) = G(0)
+    copyto!.(Gτ0, G)
+    # G(0, τ=0) = G(0) - I
+    copyto!.(G0τ, G)
+    G0τ[1][diagind(G0τ[1])] .-= 1
+    G0τ[2][diagind(G0τ[2])] .-= 1
+
     if system.useComplexHST
         α = system.auxfield[1] / system.auxfield[2]
         α = [α - 1 1/α - 1; α - 1 1/α - 1]
@@ -78,7 +92,7 @@ function HubbardGCWalker(
         α = [α - 1 1/α - 1; 1/α - 1 α - 1]
     end
 
-    return HubbardGCWalker(α, -weight, sgn, auxfield, F, ws, G, FC, Fτ, Bl, Bc)
+    return HubbardGCWalker(α, -weight, sgn, auxfield, F, ws, G, Gτ0, G0τ, FC, Fτ, Bl, Bc)
 end
 
 """

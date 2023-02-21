@@ -234,3 +234,43 @@ function expand!(U::LDR{T,E}, V::LDR{T,E}, ridx::Int) where {T, E}
 
     return nothing
 end
+
+### New Functions ###
+"""
+    Compute C = Aᵀ * B
+"""
+function transpose_mul!(C::AbstractVector{T}, A::AbstractVector{T}, B::AbstractMatrix{T}) where T
+    for i in eachindex(A)
+        for j in eachindex(A)
+            @inbounds C[i] += A[j] * B[j, i]
+        end
+    end
+end
+
+"""
+    inv_Grover!(GA⁻¹, GA₁, GA₂, ws)
+
+    Compute the Grover inverse GA⁻¹ = [GA1 * GA2 + (I - GA1) * (I - GA2)]⁻¹
+"""
+function inv_Grover!(
+    GA⁻¹::AbstractMatrix{T},
+    GA₁::AbstractMatrix{T}, GA₂::AbstractMatrix{T}, 
+    ws::LDRWorkspace{T, E}
+) where {T, E}
+    mul!(GA⁻¹, GA₁, GA₂)
+
+    ImGA₁ = ws.M′
+    ImGA₂ = ws.M″
+    @inbounds for i in eachindex(GA₁)
+        ImGA₁[i] = -GA₁[i]
+        ImGA₂[i] = -GA₂[i]
+    end
+    ImGA₁[diagind(ImGA₁)] .+= 1
+    ImGA₂[diagind(ImGA₂)] .+= 1
+
+    ImG = ws.M
+    mul!(ImG, ImGA₁, ImGA₂)
+
+    @. GA⁻¹ += ImG
+    inv_lu!(GA⁻¹, ws.lu_ws)
+end

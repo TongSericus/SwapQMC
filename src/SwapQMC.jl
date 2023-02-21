@@ -13,11 +13,14 @@ module SwapQMC
     include("./base/matrix_generator.jl")
 
     export HubbardGCWalker, HubbardGCSwapper,
+           Replica,
            sweep!
     include("./walker.jl")
+    include("./replica.jl")
     include("./operations.jl")
-    include("./propagation.jl")
-    include("./propagation_replica.jl")
+    include("./propagation/standard.jl")
+    include("./propagation/swap.jl")
+    include("./propagation/replica.jl")
 
     export TunableHubbard, TunableHubbardWalker,
            MuTuner, dynamical_tuning

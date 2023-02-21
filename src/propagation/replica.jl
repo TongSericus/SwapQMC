@@ -1,0 +1,134 @@
+################################################################################
+# Symmetric Sweep for Complex HS Transform
+################################################################################
+function update_cluster!(
+    walker::W, replica::Replica{W, ComplexF64, Float64},
+    system::Hubbard, qmc::QMC, cidx::Int
+) where W
+    # set alias
+    k = qmc.K_interval[cidx]
+    Bk = system.Bk
+    Bk⁻¹ = system.Bk⁻¹
+    Gτ = walker.G[1]
+    Gτ0 = walker.Gτ0[1]
+    G0τ = walker.G0τ[1]
+    ws = walker.ws
+    Bl = walker.Bl.B
+    cluster = walker.Bc
+    α = walker.α
+
+    for i in 1 : k
+        l = (cidx - 1) * qmc.stab_interval + i
+        @views σ = flip_HSField.(walker.auxfield[:, l])
+
+        # compute G <- Bk * G * Bk⁻¹ to enable fast update
+        system.useFirstOrderTrotter || begin 
+                                        wrap_G!(Gτ, Bk, Bk⁻¹, ws)
+                                        wrap_G!(Gτ0, Bk, Bk⁻¹, ws)
+                                        wrap_G!(G0τ, Bk, Bk⁻¹, ws)
+                                    end
+
+        for j in 1 : system.V
+            # compute ratios of determinants through G
+            r, γ, ρ = compute_Metropolis_ratio(system, replica, walker, α[1, σ[j]], j)
+
+            if rand() < r / (1 + r) # use heat-bath ratio
+                # accept the move, update the field and the Green's function
+                walker.auxfield[j, l] *= -1
+                
+                ### rank-1 updates ###
+                # update imaginary time G
+                update_Gτ0!(Gτ0, γ, Gτ, j, ws)
+                update_G0τ!(G0τ, γ, Gτ, j, ws)
+                # update Gτ, standard
+                update_G!(Gτ, γ, 1.0, j, ws)
+                # update Grover inverse
+                update_invGA!(replica, ρ)
+            end
+        end
+        
+        # compute G <- Bk⁻¹ * G * Bk to restore the ordering
+        system.useFirstOrderTrotter || begin 
+                                        wrap_G!(Gτ, Bk⁻¹, Bk, ws)
+                                        wrap_G!(Gτ0, Bk⁻¹, Bk, ws)
+                                        wrap_G!(G0τ, Bk⁻¹, Bk, ws)
+                                    end
+
+        @views σ = walker.auxfield[:, l]
+        imagtime_propagator!(Bl[i], σ, system, tmpmat = ws.M)
+
+        ### proceed to next time slice ###
+        wrap_Gs!(Gτ, Gτ0, G0τ, Bl[i], ws)
+    end
+
+    @views copyto!(cluster.B[cidx], prod(Bl[k:-1:1]))
+
+    return nothing
+end
+
+"""
+    sweep!(sys::System, qmc::QMC, s::Walker)
+
+    Sweep a single walker over the imaginary time from 0 to β
+"""
+function sweep!(
+    system::Hubbard, qmc::QMC, 
+    replica::Replica{W, ComplexF64, Float64},
+    walker::W, ridx::Int
+) where W
+    ### set alias ###
+    K = qmc.K
+    Aidx = replica.Aidx
+    ws = walker.ws
+    Bc = walker.Bc.B
+    logdetGA, sgnlogdetGA = replica.logdetGA, replica.sgnlogdetGA
+    # temporal factorizations
+    tmpL = walker.FC.B
+    Bτ = walker.Fτ[1]
+    tmpM = walker.F
+    # imaginary-time-displaced Green's
+    Gτ0 = walker.Gτ0[1]
+    G0τ = walker.G0τ[1]
+
+    ridx == 1 ? (G₀ = replica.G₀1; G₀′ = replica.G₀2) : 
+                (G₀ = replica.G₀2; G₀′ = replica.G₀1)
+
+    @inbounds for cidx in 1 : K
+        # then update a cluster of fields
+        update_cluster!(walker, replica, system, qmc, cidx)
+
+        # multiply the updated slice to the right factorization
+        lmul!(Bc[cidx], Bτ, ws)
+
+        # recompute the Grover inverse
+        mul!(tmpM[1], tmpL[cidx], Bτ, ws)
+        inv_IpA!(G₀, tmpM[1], ws)
+        logdetGA[], sgnlogdetGA[] = @views inv_Grover!(replica.GA⁻¹, G₀[Aidx, Aidx], G₀′[Aidx, Aidx], replica.ws)
+
+        # G needs to be periodically recomputed from scratch
+        mul!(tmpM[1], Bτ, tmpL[cidx], ws)
+        update!(walker, identicalSpin=true)
+
+        # compute imaginary-time-displaced Green's
+        inv_invUpV!(Gτ0, Bτ, tmpL[cidx], ws)
+        inv_invUpV!(G0τ, tmpL[cidx], Bτ, ws)
+        @. G0τ *=-1
+    end
+
+    # At the end of the simulation, recompute all partial factorizations
+    run_full_propagation_oneside(walker.Bc, walker.ws, FC = walker.FC)
+
+    # save Bτ
+    copyto!(walker.F[1], Bτ)
+    # then reset Bτ to unit matrix
+    ldr!(Bτ, I)
+
+    # switch the matrix I - 2*GA to the next replica
+    Im2GA = replica.Im2GA
+    for i in eachindex(Im2GA)
+        @inbounds Im2GA[i] = -2 * G₀[i]
+    end
+    Im2GA[diagind(Im2GA)] .+= 1
+
+    return nothing
+end
