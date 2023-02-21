@@ -1,6 +1,6 @@
 module SwapQMC
     using Reexport: @reexport
-    @reexport using LinearAlgebra, StableLinearAlgebra, Statistics, Random, FFTW
+    @reexport using LinearAlgebra, StableLinearAlgebra, LatticeUtilities, Checkerboard, Statistics, Random, FFTW
 
     import StableLinearAlgebra as Slinalg
     import StableLinearAlgebra: mul!, lmul!, rmul!, rdiv!

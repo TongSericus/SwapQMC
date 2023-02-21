@@ -5,7 +5,7 @@
 abstract type System end
 abstract type Hubbard <: System end
 
-struct BilayerHubbard{T} <: Hubbard
+struct BilayerHubbard{T, Tk} <: Hubbard
     ### Model Constants ###
     Ns::Tuple{Int64, Int64}
     V::Int64
@@ -29,8 +29,9 @@ struct BilayerHubbard{T} <: Hubbard
     useFirstOrderTrotter::Bool
 
     # kinetic propagator
-    Bk::Matrix{Float64}
-    Bk⁻¹::Matrix{Float64}
+    useCheckerBoard::Bool
+    Bk::Tk
+    Bk⁻¹::Tk
 
     function BilayerHubbard(
         Ns::Tuple{Int64, Int64}, N::Tuple{Int64, Int64},
@@ -38,13 +39,33 @@ struct BilayerHubbard{T} <: Hubbard
         μ::Float64,
         β::Float64, L::Int64;
         useComplexHST::Bool = false,
-        useFirstOrderTrotter::Bool = false
-    )  
+        useFirstOrderTrotter::Bool = false,
+        useCheckerBoard::Bool = false
+    )
         Δτ = β / L
+        useFirstOrderTrotter || (Δτ /= 2)
 
-        T = one_body_matrix_bilayer_hubbard(Ns[1], Ns[2], t, t′)
-        useFirstOrderTrotter ? Bk = exp(-T * Δτ) : Bk = exp(-T * Δτ / 2)
-        Bk⁻¹ = inv(Bk)
+        useCheckerBoard ? begin 
+                            cubic = UnitCell(
+                                lattice_vecs = [[1.,0.,0.],[0.,1.,0.],[0.,0.,1.]],
+                                basis_vecs   = [[0.,0.,0.]]
+                            )
+                            lattice = Lattice([Ns[1],Ns[2],2], [true,true,false])
+                            bond_x  = Bond(orbitals = (1,1), displacement = [1,0,0])
+                            bond_y  = Bond(orbitals = (1,1), displacement = [0,1,0])
+                            bond_z  = Bond(orbitals = (1,1), displacement = [0,0,1])
+                            nt_xy = build_neighbor_table([bond_x,bond_y], cubic, lattice)
+                            nt_z = build_neighbor_table([bond_z], cubic, lattice)
+                            hopping_xy = fill(t, size(nt_xy,2))
+                            hopping_z  = fill(t′, size(nt_z,2))
+                            Bk = CheckerboardMatrix(hcat(nt_xy, nt_z), vcat(hopping_xy, hopping_z), Δτ)
+                            Bk⁻¹ = inv(Bk)
+                        end : 
+                        begin 
+                            T = one_body_matrix_bilayer_hubbard(Ns[1], Ns[2], t, t′)
+                            Bk = exp(-T * Δτ)
+                            Bk⁻¹ = exp(T * Δτ)
+                        end
 
         ### HS transform ###
         # complex HS transform is more stable for entanglement measures
@@ -67,12 +88,13 @@ struct BilayerHubbard{T} <: Hubbard
         V₊ = zeros(sys_type, V)
         V₋ = zeros(sys_type, V)
 
-        return new{sys_type}(
+        return new{sys_type, typeof(Bk)}(
             Ns, V, 
             N, t, t′, U,
             μ, β, L,
             useComplexHST, auxfield, V₊, V₋,
             useFirstOrderTrotter,
+            useCheckerBoard,
             Bk, Bk⁻¹
         )
     end
@@ -200,7 +222,7 @@ function rearrange!(U::AbstractVector, V::AbstractVector, Aidx, Bidx)
     @views copyto!(U[LA+1:end], V[Bidx])
 end
 
-function ExtendedSystem(system::Hubbard, Aidx::Vector{Int64}) 
+function ExtendedSystem(system::Hubbard, Aidx::Vector{Int64}; revertSites::Bool = true) 
 
     LA = length(Aidx)
     Bidx = findall(x -> !(x in Aidx), 1:prod(system.V))
@@ -210,6 +232,8 @@ function ExtendedSystem(system::Hubbard, Aidx::Vector{Int64})
     LB == 0 && @error "Subsystem size should be smaller than system size"
 
     sys_type = typeof(system)
+    revertSites || return ExtendedSystem{sys_type}(system, Aidx, LA, Bidx, LB, Vext)
+
     NsX, NsY = system.Ns
     Δτ = system.β / system.L
     if sys_type <: BilayerHubbard

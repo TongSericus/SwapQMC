@@ -29,7 +29,7 @@ function update_cluster!(
             # compute ratios of determinants through G
             r, d_up, d_dn = compute_Metropolis_ratio(G, α, σ[j], j)
 
-            if rand() < r
+            if rand() < r / (1 + r)
                 # accept the move, update the field and the Green's function
                 walker.auxfield[j, l] *= -1
                 update_G!(G[1], α[1, σ[j]], d_up, j, ws)
