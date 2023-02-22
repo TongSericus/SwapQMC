@@ -167,6 +167,38 @@ function measure_EE(
     return min(1, exp(p))
 end
 
+function measure_Pn!(
+    etgm::EtgMeasurement,
+    etgdata::EtgData, extsys::ExtendedSystem, 
+    walker::W
+) where W
+    # set alias
+    LA = extsys.LA
+    GA = etgdata.GA₁
+    ImGA = etgdata.ImGA₁
+    ws = etgdata.ws
+    Pn2₊ = etgm.Pn2₊
+    Pn2₋ = etgm.Pn2₋
+    G₊ = walker.G[1]
+    G₋ = walker.G[2]
+
+    ### Spin-up part ###
+    @views ldr!(GA, G₊[1:LA, 1:LA], ws)
+    ImA!(ImGA, GA, ws)
+    Pn_estimator(GA, ImGA, ws, HA = etgdata.HA₁, P = etgdata.P)
+    @views copyto!(Pn2₊, etgdata.P[:, end])
+
+    extsys.system.useComplexHST && (@views copyto!(Pn2₋, etgdata.P[:, end]); return nothing)
+
+    ### Spin-down part ###
+    @views ldr!(GA, G₋[1:LA, 1:LA], ws)
+    ImA!(ImGA, GA, ws)
+    Pn_estimator(GA, ImGA, ws, HA = etgdata.HA₁, P = etgdata.P)
+    @views copyto!(Pn2₋, etgdata.P[:, end])
+
+    return nothing
+end
+
 """
     Grover_estimator(GA₁, ImGA₁, GA₂, ImGA₂, ws)
 
@@ -240,5 +272,30 @@ function Pn2_estimator(
     ϵ = eigvals(HA)
     poissbino(ϵ, P=P)
 
-    return nothing
+    return P
+end
+
+"""
+    Pn_estimator(GA, ImGA, ws)
+
+    Stable calculation of the particle number distribution P_{n} through recursion,
+    via the eigvalues of the entanglement Hamiltonian Hₐ = Gₐ(I - Gₐ)⁻¹
+"""
+function Pn_estimator(
+    GA::LDR{T, E}, ImGA::LDR{T, E}, 
+    ws::LDRWorkspace{T, E}; 
+    HA::LDR{T, E} = similar(GA),
+    LA = length(GA.d),
+    P::AbstractMatrix{ComplexF64} = zeros(ComplexF64, LA + 1, LA)
+) where {T, E}
+    copyto!(HA, GA)
+
+    # compute Hₐ = Gₐ(I - Gₐ)⁻¹
+    rdiv!(HA, ImGA, ws)
+
+    # diagonalize, then apply the Poisson binomial iterator
+    ϵ = eigvals(HA)
+    poissbino(ϵ, P=P)
+
+    return P
 end

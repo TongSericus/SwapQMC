@@ -30,6 +30,7 @@ module SwapQMC
     include("./dynamical_tuning/base.jl")
     include("./dynamical_tuning/dynamical_tuning.jl")
 
-    export EtgData, EtgMeasurement, measure_EE, measure_EE!
+    export EtgData, EtgMeasurement, 
+           measure_EE, measure_EE!, measure_Pn!
     include("./measurements.jl")
 end
