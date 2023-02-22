@@ -223,6 +223,26 @@ function run_full_propagation_oneside(
     return F
 end
 
+"""
+    prod_cluster!(B::AbstractMatrix, Bl::AbstractArray{T}, C::AbstractMatrix)
+
+    In-place calculation of prod(Bl) and overwrite the result to B, with an auxiliary matrix C
+"""
+function prod_cluster!(B::AbstractMatrix, Bl::AbstractArray{T}, C::AbstractMatrix) where {T<:AbstractMatrix}
+    size(B) == size(Bl[1]) == size(C) || throw(BoundsError())
+    k = length(Bl)
+    k == 1 && (copyto!(B, Bl[1]); return nothing)
+    k == 2 && (mul!(B, Bl[1], Bl[2]); return nothing)
+
+    mul!(C, Bl[1], Bl[2])
+    @inbounds for i in 3:k
+        mul!(B, C, Bl[i])
+        copyto!(C, B)
+    end
+
+    return nothing
+end
+
 ### Imaginary-time displaced operations ###
 """
     compute_Metropolis_ratio(system, replica, walker, α, sidx, ridx)

@@ -59,8 +59,8 @@ function update_cluster!(
         wrap_G!(G[2], B⁺, ws)
     end
 
-    @views copyto!(cluster.B[cidx], prod(Bl[k:-1:1]))
-    @views copyto!(cluster.B[K + cidx], prod(Bl[2*k:-1:k+1]))
+    @views prod_cluster!(cluster.B[cidx], Bl[k:-1:1], walker.ws.M)
+    @views prod_cluster!(cluster.B[K + cidx], Bl[2*k:-1:k+1], walker.ws.M)
 
     return nothing
 end
@@ -187,7 +187,7 @@ function update_cluster!(
         wrap_G!(G, B⁺, ws)
     end
 
-    @views copyto!(cluster.B[cidx], prod(Bl[k:-1:1]))
+    @views prod_cluster!(cluster.B[cidx], Bl[k:-1:1], walker.ws.M)
 
     return nothing
 end
