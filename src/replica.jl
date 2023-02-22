@@ -1,5 +1,5 @@
 """
-    A New Swap Monte Carlo Propagation in the Z_{A, 2} space
+    Define the replica
 """
 
 struct Replica{W<:GCWalker, T, E}
@@ -47,7 +47,7 @@ struct Replica{W<:GCWalker, T, E}
         b = zeros(T, LA)
         t = zeros(T, LA)
 
-        Im2GA = I - 2 * walker2.G[1][1:LA, 1:LA]
+        Im2GA = I - 2 * (@view G₀2[1:LA, 1:LA])
         
         return new{W, T, Float64}(
             Aidx, 

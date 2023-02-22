@@ -156,7 +156,7 @@ function update_cluster!(
 
     for i in 1 : k
         l = (cidx - 1) * qmc.stab_interval + i
-        @views σ = flip_HSField.(walker.auxfield[:, l])
+        @views σ = walker.auxfield[:, l]
 
         # compute G <- Bk * G * Bk⁻¹ to enable fast update
         system.useFirstOrderTrotter || wrap_G!(G, Bk, Bk⁻¹, ws)
@@ -165,13 +165,14 @@ function update_cluster!(
             sidx = j
             ridx == 2 && j > LA && (sidx = j - LA + system.V)
 
+            σj = flip_HSField(σ[j])
             # compute ratios of determinants through G
-            r, d = compute_Metropolis_ratio(G, α, σ[j], sidx)
+            r, d = compute_Metropolis_ratio(G, α[1, σj], sidx)
 
             if rand() < r / (1 + r)
                 # accept the move, update the field and the Green's function
                 walker.auxfield[j, l] *= -1
-                update_G!(G, α[1, σ[j]], d, sidx, ws)
+                update_G!(G, α[1, σj], d, sidx, ws)
             end
         end
 

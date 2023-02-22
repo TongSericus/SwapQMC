@@ -138,7 +138,7 @@ merge_HA!(HA::LDR{T,E}, HA′::LDR{T,E}, ws::LDRWorkspace{T,E})  where {T, E} = 
     Matrix Operations for Swap Algorithm
 """
 
-reset!(U::AbstractMatrix{T}) where {T} = let
+reset!(U::AbstractMatrix) = let
     @. U = 0.0
 end
 
@@ -179,7 +179,7 @@ end
 function expand!(
     U::AbstractVector{T}, V::AbstractVector{T}, 
     LA::Int, LB::Int, ridx::Int
-) where {T <: AbstractMatrix}
+) where {T<:AbstractMatrix}
     length(U) == length(V) || @error "Two vectors of matrix must have same length"
 
     for i in eachindex(U)

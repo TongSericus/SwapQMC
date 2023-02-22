@@ -1,6 +1,9 @@
-################################################################################
-# Symmetric Sweep for Complex HS Transform
-################################################################################
+"""
+    A new replica Monte Carlo sweep in the Z_{A, 2} space but has the same
+    scaling as in the regular Z space, see the supplement of arXiv:2211.04334
+    for full details
+"""
+
 function update_cluster!(
     walker::W, replica::Replica{W, ComplexF64, Float64},
     system::Hubbard, qmc::QMC, cidx::Int, ridx::Int

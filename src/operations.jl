@@ -7,8 +7,8 @@
     if only the ith auxiliary field is flipped
 """
 function compute_Metropolis_ratio(
-    G::AbstractArray{T}, α::Ta, i::Int, sidx::Int
-) where {T, Ta}
+    G::Vector{T}, α::Ta, i::Int, sidx::Int
+) where {T<:AbstractMatrix, Ta}
     d_up = 1 + α[1, i] * (1 - G[1][sidx, sidx])
     d_dn = 1 + α[2, i] * (1 - G[2][sidx, sidx])
     r = abs(d_up * d_dn)
@@ -17,17 +17,18 @@ function compute_Metropolis_ratio(
 end
 
 """
+    compute_Metropolis_ratio(G, α, i, sidx)
+
     Compute the ratio of determinants using Green's function, with
     the auxiliary field being complex and spin-up and spin-down channel
     are identical (hence only a single G is required)
 """
 function compute_Metropolis_ratio(
-    G::AbstractMatrix, α::Ta, i::Int, sidx::Int
-) where Ta
-    γ = α[1, i]
-    d = γ * (1 - G[sidx, sidx])
+    G::AbstractMatrix, α::Ta, sidx::Int
+) where {Ta<:Number}
+    d = α * (1 - G[sidx, sidx])
     # accept ratio
-    r = (1 + d)^2 / (γ + 1)
+    r = (1 + d)^2 / (α + 1)
 
     return real(r), d+1
 end
@@ -223,6 +224,16 @@ function run_full_propagation_oneside(
 end
 
 ### Imaginary-time displaced operations ###
+"""
+    compute_Metropolis_ratio(system, replica, walker, α, sidx, ridx)
+
+    Compute the Metroplis accept ratio for the ridx-th replica at the sidx-th site,
+    using the formula
+    r↑ = r↓ = 1 + α * (1 - Gτ[sidx, sidx] - Γ).
+
+    The overall ratio needs a phase factor for complex HS transform
+    r = r↑ * r↓ / (α + 1)
+"""
 function compute_Metropolis_ratio(
     system::System,
     replica::Replica{W, ComplexF64}, walker::W,
@@ -238,8 +249,7 @@ function compute_Metropolis_ratio(
     Gτ0 = walker.Gτ0[1]
 
     # compute Γ = a * bᵀ
-    if system.useFirstOrderTrotter
-    # asymmetric case
+    if system.useFirstOrderTrotter  # asymmetric case
         ridx == 1 ? 
             begin
                 @views mul!(a, GA⁻¹, G0τ[Aidx, sidx])
@@ -253,8 +263,7 @@ function compute_Metropolis_ratio(
                 @views mul!(a, GA⁻¹, t)
                 @views copyto!(b, Gτ0[sidx, Aidx])
             end
-    else
-    # symmetric case
+    else                            # symmetric case
         Bk = system.Bk
         Bk⁻¹ = system.Bk⁻¹
         # update the first replica
@@ -290,9 +299,6 @@ function compute_Metropolis_ratio(
     return real(r), γ, ρ
 end
 
-"""
-    update_G0!(G, α, d, sidx, ws)
-"""
 function update_G0!(
     G0::AbstractMatrix{T}, γ::Ta, 
     Gτ0::AbstractMatrix{T}, G0τ::AbstractMatrix{T},
@@ -306,6 +312,12 @@ function update_G0!(
     @. G0 += dG0
 end
 
+"""
+    update_Gτ0!(Gτ0, γ, Gτ, sidx, ws)
+
+    Update the imaginary time Green's function G(τ,0) when the
+    sidx-th spin is flipped
+"""
 function update_Gτ0!(
     Gτ0::AbstractMatrix{T}, γ::Ta, 
     Gτ::AbstractMatrix{T},
@@ -328,6 +340,12 @@ function update_Gτ0!(
     @. Gτ0 += dGτ0
 end
 
+"""
+    update_G0τ!(G0τ, γ, Gτ, sidx, ws)
+
+    Update the imaginary time Green's function G(0,τ) when the
+    sidx-th spin is flipped
+"""
 function update_G0τ!(
     G0τ::AbstractMatrix{T}, γ::Ta, 
     Gτ::AbstractMatrix{T},
@@ -341,6 +359,13 @@ function update_G0τ!(
     @. G0τ += dG0τ
 end
 
+"""
+    update_G0τ!(G0τ, γ, Gτ, sidx, ws)
+
+    Update the Grover inverse 
+    GA⁻¹ = (GA₁ * GA₂ + (I-GA₁) * (I-GA₂))⁻¹
+    when the sidx-th spin is flipped
+"""
 function update_invGA!(replica::Replica{W, ComplexF64}, ρ::T) where {W, T}
     GA⁻¹ = replica.GA⁻¹
     a = replica.a
