@@ -43,7 +43,7 @@ struct BilayerHubbard{T, Tk} <: Hubbard
         useCheckerBoard::Bool = false
     )
         Δτ = β / L
-        useFirstOrderTrotter || (Δτ /= 2)
+        useFirstOrderTrotter ? dτ = Δτ : dτ = Δτ/2
 
         useCheckerBoard ? begin 
                             cubic = UnitCell(
@@ -58,13 +58,13 @@ struct BilayerHubbard{T, Tk} <: Hubbard
                             nt_z = build_neighbor_table([bond_z], cubic, lattice)
                             hopping_xy = fill(t, size(nt_xy,2))
                             hopping_z  = fill(t′, size(nt_z,2))
-                            Bk = CheckerboardMatrix(hcat(nt_xy, nt_z), vcat(hopping_xy, hopping_z), Δτ)
+                            Bk = CheckerboardMatrix(hcat(nt_xy, nt_z), vcat(hopping_xy, hopping_z), dτ)
                             Bk⁻¹ = inv(Bk)
                         end : 
                         begin 
                             T = one_body_matrix_bilayer_hubbard(Ns[1], Ns[2], t, t′)
-                            Bk = exp(-T * Δτ)
-                            Bk⁻¹ = exp(T * Δτ)
+                            Bk = exp(-T * dτ)
+                            Bk⁻¹ = exp(T * dτ)
                         end
 
         ### HS transform ###
