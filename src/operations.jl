@@ -238,42 +238,54 @@ function compute_Metropolis_ratio(
     Gτ0 = walker.Gτ0[1]
 
     # compute Γ = a * bᵀ
-    system.useFirstOrderTrotter ? begin
-                                    @views mul!(a, GA⁻¹, G0τ[Aidx, sidx])
-                                    @views transpose_mul!(b, Gτ0[sidx, Aidx], replica.Im2GA)
-                                end :
-                                begin
-                                    Bk = system.Bk
-                                    Bk⁻¹ = system.Bk⁻¹
-                                    
-                                    # update the first replica
-                                    ridx == 1 ? begin
-                                        BG0τ = replica.t
-                                        @views mul!(BG0τ, Bk⁻¹[Aidx, :], G0τ[:, sidx])
-                                        @views mul!(a, GA⁻¹, BG0τ)
-                                    
-                                        Gτ0B = replica.t
-                                        @views transpose_mul!(Gτ0B, Gτ0[sidx, :], Bk[:, Aidx])
-                                        @views transpose_mul!(b, Gτ0B, replica.Im2GA)
-                                    end : 
-                                    # update the second replica
-                                    begin
-                                        t = replica.t
-                                        @views mul!(a, Bk⁻¹[Aidx, :], G0τ[:, sidx])
-                                        @views mul!(t, replica.Im2GA, a)
-                                        @views mul!(a, GA⁻¹, t)
-                                    
-                                        @views transpose_mul!(b, Gτ0[sidx, :], Bk[:, Aidx])
-                                    end
-                                end
-    Γ = transpose(a) * b
+    if system.useFirstOrderTrotter
+    # asymmetric case
+        ridx == 1 ? 
+            begin
+                @views mul!(a, GA⁻¹, G0τ[Aidx, sidx])
+                @views mul!(a, GA⁻¹, G0τ[Aidx, sidx])
+                @views transpose_mul!(b, Gτ0[sidx, Aidx], replica.Im2GA)
+            end :
+            # update the second replica
+            begin
+                t = replica.t
+                @views mul!(t, replica.Im2GA, G0τ[Aidx, sidx])
+                @views mul!(a, GA⁻¹, t)
+                @views copyto!(b, Gτ0[sidx, Aidx])
+            end
+    else
+    # symmetric case
+        Bk = system.Bk
+        Bk⁻¹ = system.Bk⁻¹
+        # update the first replica
+        ridx == 1 ? 
+            begin
+                BG0τ = replica.t
+                @views mul!(BG0τ, Bk⁻¹[Aidx, :], G0τ[:, sidx])
+                @views mul!(a, GA⁻¹, BG0τ)
 
-    d = 1 + α * (1 - Gτ - Γ)
+                Gτ0B = replica.t
+                @views transpose_mul!(Gτ0B, Gτ0[sidx, :], Bk[:, Aidx])
+                @views transpose_mul!(b, Gτ0B, replica.Im2GA)
+            end : 
+        # update the second replica
+            begin
+                t = replica.t
+                @views mul!(a, Bk⁻¹[Aidx, :], G0τ[:, sidx])
+                @views mul!(t, replica.Im2GA, a)
+                @views mul!(a, GA⁻¹, t)
+
+                @views transpose_mul!(b, Gτ0[sidx, :], Bk[:, Aidx])
+            end
+    end
+    Γ::ComplexF64 = transpose(a) * b
+
+    d::ComplexF64 = 1 + α * (1 - Gτ - Γ)
     # accept ratio
-    r = d^2 / (α+1)
+    r::ComplexF64 = d^2 / (α+1)
 
-    γ = α / (d + α * Γ)
-    ρ = α / d
+    γ::ComplexF64 = α / (d + α * Γ)
+    ρ::ComplexF64 = α / d
 
     return real(r), γ, ρ
 end

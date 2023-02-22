@@ -16,17 +16,17 @@ struct Replica{W<:GCWalker, T, E}
     G₀2::Matrix{T}
 
     # inverse of the Grover matrix
-    GA⁻¹::AbstractMatrix{T}
+    GA⁻¹::Matrix{T}
     logdetGA::Base.RefValue{Float64}
     sgnlogdetGA::Base.RefValue{T}
 
     # constant matrix I - 2*GA
-    Im2GA::AbstractMatrix{T}
+    Im2GA::Matrix{T}
 
     # two vectors used in computing the ratio and updating the Grover inverse
-    a::AbstractVector{T}
-    b::AbstractVector{T}
-    t::AbstractVector{T}    # a temporal vector for storage
+    a::Vector{T}
+    b::Vector{T}
+    t::Vector{T}    # a temporal vector for storage
 
     # LDR Workspace
     ws::LDRWorkspace{T, E}
