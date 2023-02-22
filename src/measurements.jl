@@ -111,6 +111,48 @@ function measure_EE!(
     return nothing
 end
 
+function measure_EE!(
+    etgm::EtgMeasurement,
+    etgdata::EtgData, extsys::ExtendedSystem, 
+    replica::Replica{W, ComplexF64, Float64}
+) where W
+    LA = extsys.LA
+
+    HA₁ = etgdata.HA₁
+    HA₂ = etgdata.HA₂
+    GA₁ = etgdata.GA₁
+    GA₂ = etgdata.GA₂
+    ImGA₁ = etgdata.ImGA₁
+    ImGA₂ = etgdata.ImGA₂
+    ws = etgdata.ws
+
+    Pn2₊ = etgm.Pn2₊
+    Pn2₋ = etgm.Pn2₋
+
+    G₁ = replica.G₀1
+    G₂ = replica.G₀2
+
+    ### Spin-up part ###
+    # compute the sub Green's function
+    @views ldr!(GA₁, G₁[1:LA, 1:LA], ws)
+    @views ldr!(GA₂, G₂[1:LA, 1:LA], ws)
+
+    # compute I - Gₐ
+    ImA!(ImGA₁, GA₁, ws)
+    ImA!(ImGA₂, GA₂, ws)
+
+    # then measure Pn2
+    Pn2_estimator(GA₁, ImGA₁, GA₂, ImGA₂, ws, HA₁ = HA₁, HA₂ = HA₂, P = etgdata.P)
+    # spin-up and spin-down part are exactly the same for SU(2) transform
+    @views copyto!(Pn2₊, etgdata.P[:, end])
+    @views copyto!(Pn2₋, etgdata.P[:, end])
+
+    # record the transition probability
+    etgm.p[] = min(1, exp(replica.logdetGA[]))
+
+    return nothing
+end
+
 """
     Measure the transition probability in Z² space
 """
