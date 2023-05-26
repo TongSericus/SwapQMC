@@ -148,7 +148,7 @@ function measure_EE!(
     @views copyto!(Pn2₋, etgdata.P[:, end])
 
     # record the transition probability
-    etgm.p[] = min(1, exp(replica.logdetGA[]))
+    etgm.p[] = min(1, exp(2*replica.logdetGA[]))
 
     return nothing
 end

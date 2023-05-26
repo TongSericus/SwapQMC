@@ -17,7 +17,7 @@ struct Replica{W<:GCWalker, T, E}
 
     # inverse of the Grover matrix
     GA⁻¹::Matrix{T}
-    logdetGA::Base.RefValue{Float64}
+    logdetGA::Base.RefValue{Float64}    # note: it's the negative value det(GA⁻¹)
     sgnlogdetGA::Base.RefValue{T}
 
     # constant matrix I - 2*GA
@@ -58,4 +58,22 @@ struct Replica{W<:GCWalker, T, E}
             a, b, t, ws
         )
     end
+end
+
+function update!(replica::Replica; identicalSpin::Bool = true)
+    """
+        Update the value of det(GA⁻¹)
+    """
+    Aidx = replica.Aidx
+    G₀1 = replica.walker1.G[1]
+    G₀2 = replica.walker2.G[1]
+    GA⁻¹ = replica.GA⁻¹
+    ws = replica.ws
+
+    @views logdetGA, sgnlogdetGA = inv_Grover!(GA⁻¹, G₀1[Aidx, Aidx], G₀2[Aidx, Aidx], ws)
+
+    replica.logdetGA[] = logdetGA
+    replica.sgnlogdetGA[] = sgnlogdetGA
+
+    return nothing
 end
