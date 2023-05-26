@@ -41,7 +41,7 @@ const T = hopping_matrix_sshHubbard_1D(L, t, δt, isOBC=true)
 
 const system = GenericHubbard(
     # (Nx, Ny), (N_up, N_dn)
-    (L, 1), (nup, ndn),
+    (L, 1, 1), (nup, ndn),
     # t, U
     T, 4.0,
     # μ
@@ -64,7 +64,7 @@ const qmc = QMC(
 
 # assign subsystem indices
 const Aidx = δt > 0 ? collect(1 : div(L,2)) : collect(1 : div(L,2)+1)
-const extsys = ExtendedSystem(system, Aidx, revertSites=true)
+const extsys = ExtendedSystem(system, Aidx, subsysOrdering=true)
 
 seed = file_id + 5678
 @show seed

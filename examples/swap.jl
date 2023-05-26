@@ -60,7 +60,7 @@ function run_swap_gce(
 
         walker1 = HubbardGCWalker(system, qmc)
         walker2 = HubbardGCWalker(system, qmc)
-        swapper = HubbardGCSwapper(extsys, walker1, walker2)
+        replica = Replica(extsys, walker1, walker2)
 
         p = zeros(Float64, qmc.nsamples)
         sgn = zeros(T, qmc.nsamples)
@@ -77,7 +77,8 @@ function run_swap_gce(
                 sweep!(system, qmc, walker2)
             end
 
-            p[i] = measure_EE(walker1, walker2, swapper, isIdenticalSpin=system.useComplexHST)
+            update!(replica)
+            p[i] = exp(-2 * replica.logdetGA[])
             sgn[i] = prod(walker1.sign) * prod(walker2.sign)
         end
 
