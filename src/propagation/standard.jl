@@ -2,6 +2,10 @@
     Monte Carlo Propagation in the regular Z space
 """
 
+##################################################
+##### Asymmetric Sweep for Spin HS Transform #####
+##################################################
+
 function update_cluster!(
     walker::HubbardGCWalker{Float64, Ft, E, C},
     system::Hubbard, qmc::QMC, cidx::Int
@@ -23,7 +27,10 @@ function update_cluster!(
         @views σ = walker.auxfield[:, l]
 
         # compute G <- Bk * G * Bk⁻¹ to enable fast update
-        system.useFirstOrderTrotter || (wrap_G!(G[1], Bk, Bk⁻¹, ws); wrap_G!(G[2], Bk, Bk⁻¹, ws))
+        system.useFirstOrderTrotter || begin
+                                        wrap_G!(G[1], Bk, Bk⁻¹, ws)
+                                        wrap_G!(G[2], Bk, Bk⁻¹, ws)
+                                    end
 
         for j in 1 : system.V
             σj = flip_HSField(σ[j])
@@ -39,7 +46,10 @@ function update_cluster!(
         end
         
         # compute G <- Bk⁻¹ * G * Bk to restore the ordering
-        system.useFirstOrderTrotter || (wrap_G!(G[1], Bk⁻¹, Bk, ws); wrap_G!(G[2], Bk⁻¹, Bk, ws))
+        system.useFirstOrderTrotter || begin
+                                        wrap_G!(G[1], Bk⁻¹, Bk, ws)
+                                        wrap_G!(G[2], Bk⁻¹, Bk, ws)
+                                    end         
 
         @views σ = walker.auxfield[:, l]
         imagtime_propagator!(Bl[i], Bl[k + i], σ, system, tmpmat = ws.M)
@@ -55,15 +65,15 @@ function update_cluster!(
     return nothing
 end
 
-"""
-    sweep!(sys::System, qmc::QMC, s::Walker)
-
-    Sweep a single walker over the imaginary time from 0 to β
-"""
 function sweep!(
     system::Hubbard, qmc::QMC, 
     walker::HubbardGCWalker{Float64, Ft, E, C}
 ) where {Ft, E, C}
+    """
+        sweep!(system, qmc, walker)
+
+        Sweep a single walker over the imaginary time from 0 to β
+    """
     K = qmc.K
 
     ws = walker.ws
@@ -89,7 +99,7 @@ function sweep!(
     end
 
     # At the end of the simulation, recompute all partial factorizations
-    run_full_propagation(walker.Bc, walker.ws, FC = walker.FC)
+    propagate_over_full_space(walker.Bc, walker.ws, FC = walker.FC)
 
     # save Fτs
     copyto!.(walker.F, tmpR)
@@ -100,9 +110,9 @@ function sweep!(
     return nothing
 end
 
-################################################################################
-# Symmetric Sweep for Complex HS Transform
-################################################################################
+###################################################
+##### Symmetric Sweep for Charge HS Transform #####
+###################################################
 
 function update_cluster!(
     walker::HubbardGCWalker{ComplexF64, Ft, E, C},
@@ -131,8 +141,11 @@ function update_cluster!(
             σj = flip_HSField(σ[j])
             # compute ratios of determinants through G
             r, d = compute_Metropolis_ratio(G, α[1, σj], j)
+            qmc.saveRatio && push!(walker.tmp_r, r)
+            # accept ratio
+            u = qmc.useHeatbath ? real(r) / (1 + real(r)) : real(r)
 
-            if rand() < r
+            if rand() < u
                 # accept the move, update the field and the Green's function
                 walker.auxfield[j, l] *= -1
                 update_G!(G, α[1, σj], d, j, ws)
@@ -154,15 +167,15 @@ function update_cluster!(
     return nothing
 end
 
-"""
-    sweep!(sys::System, qmc::QMC, s::Walker)
-
-    Sweep a single walker over the imaginary time from 0 to β
-"""
 function sweep!(
     system::Hubbard, qmc::QMC, 
     walker::HubbardGCWalker{ComplexF64, Ft, E, C}
 ) where {Ft, E, C}
+    """
+        sweep!(system, qmc, walker)
+
+        Sweep a single walker over the imaginary time from 0 to β
+    """
     K = qmc.K
 
     ws = walker.ws
@@ -186,7 +199,7 @@ function sweep!(
     end
 
     # At the end of the simulation, recompute all partial factorizations
-    run_full_propagation_oneside(walker.Bc, walker.ws, FC = walker.FC)
+    propagate_over_full_space(walker.Bc, walker.ws, FC = walker.FC, singleSided=true)
 
     # save Fτs
     copyto!(walker.F[1], tmpR[1])

@@ -1,14 +1,17 @@
-### Basic operations ###
-"""
-    compute_Metropolis_ratio(G, α, i, sidx)
+###################################
+##### Basic operations in QMC #####
+###################################
 
-    Compute the ratio of determinants using Green's function
-    det(M_new) / det(M_old) = 1 + α * (1 - G[i, i])
-    if only the ith auxiliary field is flipped
-"""
 function compute_Metropolis_ratio(
     G::Vector{T}, α::Ta, i::Int, sidx::Int
 ) where {T<:AbstractMatrix, Ta}
+    """
+        compute_Metropolis_ratio(G, α, i, sidx)
+
+        Compute the ratio of determinants using Green's function
+        det(M_new) / det(M_old) = 1 + α * (1 - G[i, i])
+        if only the ith auxiliary field is flipped
+    """
     d_up = 1 + α[1, i] * (1 - G[1][sidx, sidx])
     d_dn = 1 + α[2, i] * (1 - G[2][sidx, sidx])
     r = abs(d_up * d_dn)
@@ -16,29 +19,29 @@ function compute_Metropolis_ratio(
     return r, d_up, d_dn
 end
 
-"""
-    compute_Metropolis_ratio(G, α, i, sidx)
-
-    Compute the ratio of determinants using Green's function, with
-    the auxiliary field being complex and spin-up and spin-down channel
-    are identical (hence only a single G is required)
-"""
 function compute_Metropolis_ratio(
     G::AbstractMatrix, α::Ta, sidx::Int
 ) where {Ta<:Number}
+    """
+        compute_Metropolis_ratio(G, α, i, sidx)
+
+        Compute the ratio of determinants using Green's function, with
+    the auxiliary field being complex and spin-up and spin-down channel
+    are identical (hence only a single G is required)
+    """
     d = α * (1 - G[sidx, sidx])
     # accept ratio
     r = (1 + d)^2 / (α + 1)
 
-    return real(r), d+1
+    return r, d+1
 end
 
-"""
-    kron!(C, α, a, b)
-
-    In-place operation of C = α * u * wᵀ
-"""
 function Base.kron!(C::AbstractMatrix, α::Number, a::AbstractVector, b::AbstractVector)
+    """
+        kron!(C, α, a, b)
+
+        In-place operation of C = α * u * wᵀ
+    """
     for i in eachindex(a)
         for j in eachindex(a)
             @inbounds C[j, i] = α * a[j] * b[i]
@@ -46,14 +49,14 @@ function Base.kron!(C::AbstractMatrix, α::Number, a::AbstractVector, b::Abstrac
     end
 end
 
-"""
-    update_G!(G, α, d, sidx, ws)
-
-    Fast update the Green's function at the ith site:
-    G ← G - α_{i, σ} / d_{i, i} * u * wᵀ
-    where u = (I - G)e₁, w = Gᵀe₁
-"""
 function update_G!(G::AbstractMatrix{T}, α::Ta, d::Td, sidx::Int64, ws::LDRWorkspace{T, E}) where {T, Ta, Td, E}
+    """
+        update_G!(G, α, d, sidx, ws)
+
+        Fast update the Green's function at the ith site:
+        G ← G - α_{i, σ} / d_{i, i} * u * wᵀ
+        where u = (I - G)e₁, w = Gᵀe₁
+    """
     ImG = ws.M
     dG = ws.M′
     g = @view G[sidx, :]
@@ -71,12 +74,12 @@ function update_G!(G::AbstractMatrix{T}, α::Ta, d::Td, sidx::Int64, ws::LDRWork
     G .-= dG
 end
 
-"""
-    wrap_G!(G, B, ws)
-
-    Compute G ← B * G * B⁻¹
-"""
 function wrap_G!(G::AbstractMatrix{T}, B::AbstractMatrix{TB}, ws::LDRWorkspace{T, E}) where {T, TB, E}
+    """
+        wrap_G!(G, B, ws)
+
+        Compute G ← B * G * B⁻¹
+    """
     mul!(ws.M, B, G)
     
     B⁻¹ = ws.M′
@@ -86,19 +89,48 @@ function wrap_G!(G::AbstractMatrix{T}, B::AbstractMatrix{TB}, ws::LDRWorkspace{T
 end
 
 function wrap_G!(G::AbstractMatrix{T}, B::Tb, B⁻¹::Tb, ws::LDRWorkspace{T, E}) where {T, Tb, E}
+    """
+        wrap_G!(G, B, B⁻¹, ws)
+
+        Compute G ← B * G * B⁻¹
+    """
     mul!(ws.M, B, G)
     mul!(G, ws.M, B⁻¹)
 end
 
 flip_HSField(σ::Int) = Int64((σ + 1) / 2 + 1)
 
-"""
-    Propagate the full space-time lattice
-"""
-function run_full_propagation(
+function prod_cluster!(B::AbstractMatrix, Bl::AbstractArray{T}, C::AbstractMatrix) where {T<:AbstractMatrix}
+    """
+        prod_cluster!(B::AbstractMatrix, Bl::AbstractArray{T}, C::AbstractMatrix)
+
+        In-place calculation of prod(Bl) and overwrite the result to B, with an auxiliary matrix C
+    """
+    size(B) == size(Bl[1]) == size(C) || throw(BoundsError())
+    k = length(Bl)
+    k == 1 && (copyto!(B, Bl[1]); return nothing)
+    k == 2 && (mul!(B, Bl[1], Bl[2]); return nothing)
+
+    mul!(C, Bl[1], Bl[2])
+    @inbounds for i in 3:k
+        mul!(B, C, Bl[i])
+        copyto!(C, B)
+    end
+
+    return nothing
+end
+
+############################################
+##### Full Imaginary-time Propagations #####
+############################################
+
+function propagate_over_full_space(
     auxfield::AbstractMatrix{Int64}, system::System, qmc::QMC, ws::LDRWorkspace{T,E}; 
     isReverse::Bool = true
 ) where {T, E}
+    """
+        Propagate over the full space-time lattice given the auxiliary field configuration
+    """
     K = qmc.K 
     V = system.V
     si = qmc.stab_interval
@@ -152,113 +184,64 @@ function run_full_propagation(
     return F, MatProd, FC
 end
 
-"""
-    Propagate the full space-time lattice given the matrix clusters
-"""
-function run_full_propagation(
+function propagate_over_full_space(
     MatProd::Cluster{C}, ws::LDRWorkspace{T,E};
     isReverse::Bool = true,
+    singleSided::Bool = false,
     K = div(length(MatProd.B), 2),
     V = size(MatProd.B[1]),
     i = eltype(ws.M) <: Real ? 1.0 : 1.0+0.0im,
     F = ldrs(Matrix(i*I, V), 2),
     FC = Cluster(B = ldrs(Matrix(i*I, V), 2 * K))
 ) where {C, T, E}
-
+    """
+        Propagate over the full space-time lattice given the matrix clusters
+    """
     Bm = MatProd.B
     Bf = FC.B
 
     isReverse && begin 
-        for i in K:-1:1
-            copyto!(Bf[i], F[1])
-            copyto!(Bf[K + i], F[2])
+        for n in K:-1:1
+            copyto!(Bf[n], F[1])
+            singleSided || copyto!(Bf[K + n], F[2])
 
-            rmul!(F[1], Bm[i], ws)
-            rmul!(F[2], Bm[K + i], ws)
+            rmul!(F[1], Bm[n], ws)
+            singleSided || rmul!(F[2], Bm[K + n], ws)
         end
 
         return F
     end
 
-    for i in 1:K
-        copyto!(Bf[i], F[1])
-        copyto!(Bf[K + i], F[2])
+    for n in 1:K
+        copyto!(Bf[n], F[1])
+        singleSided || copyto!(Bf[K + n], F[2])
 
-        lmul!(Bm[i], F[1], ws)
-        lmul!(Bm[K + i], F[2], ws)
+        lmul!(Bm[n], F[1], ws)
+        singleSided || lmul!(Bm[K + n], F[2], ws)
     end
     
     return F
 end
 
-function run_full_propagation_oneside(
-    MatProd::Cluster{C}, ws::LDRWorkspace{T,E};
-    isReverse::Bool = true,
-    K = div(length(MatProd.B), 2),
-    V = size(MatProd.B[1]),
-    i = eltype(ws.M) <: Real ? 1.0 : 1.0+0.0im,
-    F = ldr(Matrix(i*I, V)),
-    FC = Cluster(B = ldrs(Matrix(i*I, V), K))
-) where {C, T, E}
+###############################################
+##### Imaginary-time-displaced Operations #####
+###############################################
 
-    Bm = MatProd.B
-    Bf = FC.B
-
-    isReverse && begin 
-        for i in K:-1:1
-            copyto!(Bf[i], F)
-
-            rmul!(F, Bm[i], ws)
-        end
-
-        return F
-    end
-
-    for i in 1:K
-        copyto!(Bf[i], F)
-
-        lmul!(Bm[i], F, ws)
-    end
-    
-    return F
-end
-
-"""
-    prod_cluster!(B::AbstractMatrix, Bl::AbstractArray{T}, C::AbstractMatrix)
-
-    In-place calculation of prod(Bl) and overwrite the result to B, with an auxiliary matrix C
-"""
-function prod_cluster!(B::AbstractMatrix, Bl::AbstractArray{T}, C::AbstractMatrix) where {T<:AbstractMatrix}
-    size(B) == size(Bl[1]) == size(C) || throw(BoundsError())
-    k = length(Bl)
-    k == 1 && (copyto!(B, Bl[1]); return nothing)
-    k == 2 && (mul!(B, Bl[1], Bl[2]); return nothing)
-
-    mul!(C, Bl[1], Bl[2])
-    @inbounds for i in 3:k
-        mul!(B, C, Bl[i])
-        copyto!(C, B)
-    end
-
-    return nothing
-end
-
-### Imaginary-time displaced operations ###
-"""
-    compute_Metropolis_ratio(system, replica, walker, α, sidx, ridx)
-
-    Compute the Metroplis accept ratio for the ridx-th replica at the sidx-th site,
-    using the formula
-    r↑ = r↓ = 1 + α * (1 - Gτ[sidx, sidx] - Γ).
-
-    The overall ratio needs a phase factor for complex HS transform
-    r = r↑ * r↓ / (α + 1)
-"""
 function compute_Metropolis_ratio(
     system::System,
     replica::Replica{W, ComplexF64}, walker::W,
     α::Ta, sidx::Int, ridx::Int
 ) where {W, Ta}
+    """
+        compute_Metropolis_ratio(system, replica, walker, α, sidx, ridx)
+
+        Compute the Metroplis accept ratio for the ridx-th replica at the sidx-th site,
+        using the formula
+        r↑ = r↓ = 1 + α * (1 - Gτ[sidx, sidx] - Γ).
+
+        The overall ratio needs a phase factor for complex HS transform
+        r = r↑ * r↓ / (α + 1)
+    """
     # set alias
     Aidx = replica.Aidx
     GA⁻¹ = replica.GA⁻¹
@@ -316,7 +299,7 @@ function compute_Metropolis_ratio(
     γ::ComplexF64 = α / (d + α * Γ)
     ρ::ComplexF64 = α / d
 
-    return real(r), γ, ρ
+    return r, γ, ρ
 end
 
 function update_G0!(
@@ -332,17 +315,17 @@ function update_G0!(
     @. G0 += dG0
 end
 
-"""
-    update_Gτ0!(Gτ0, γ, Gτ, sidx, ws)
-
-    Update the imaginary time Green's function G(τ,0) when the
-    sidx-th spin is flipped
-"""
 function update_Gτ0!(
     Gτ0::AbstractMatrix{T}, γ::Ta, 
     Gτ::AbstractMatrix{T},
     sidx::Int64, ws::LDRWorkspace{T, E}
 ) where {T, Ta, E}
+    """
+        update_Gτ0!(Gτ0, γ, Gτ, sidx, ws)
+
+        Update the imaginary time Green's function G(τ,0) when the
+        sidx-th spin is flipped
+    """
     GτmI = ws.M
     dGτ0 = ws.M′
     g = @view Gτ[sidx, :]
@@ -360,17 +343,17 @@ function update_Gτ0!(
     @. Gτ0 += dGτ0
 end
 
-"""
-    update_G0τ!(G0τ, γ, Gτ, sidx, ws)
-
-    Update the imaginary time Green's function G(0,τ) when the
-    sidx-th spin is flipped
-"""
 function update_G0τ!(
     G0τ::AbstractMatrix{T}, γ::Ta, 
     Gτ::AbstractMatrix{T},
     sidx::Int64, ws::LDRWorkspace{T, E}
 ) where {T, Ta, E}
+    """
+        update_G0τ!(G0τ, γ, Gτ, sidx, ws)
+
+        Update the imaginary time Green's function G(0,τ) when the
+    sidx-th spin is flipped
+    """
     dG0τ = ws.M
 
     # compute (I - G)eᵢ * Gᵀeᵢ
@@ -379,14 +362,14 @@ function update_G0τ!(
     @. G0τ += dG0τ
 end
 
-"""
-    update_G0τ!(G0τ, γ, Gτ, sidx, ws)
-
-    Update the Grover inverse 
-    GA⁻¹ = (GA₁ * GA₂ + (I-GA₁) * (I-GA₂))⁻¹
-    when the sidx-th spin is flipped
-"""
 function update_invGA!(replica::Replica{W, ComplexF64}, ρ::T) where {W, T}
+    """
+        update_invGA!(replica, ρ)
+
+        Update the Grover inverse 
+        GA⁻¹ = (GA₁ * GA₂ + (I-GA₁) * (I-GA₂))⁻¹
+        when the sidx-th spin is flipped
+    """
     GA⁻¹ = replica.GA⁻¹
     a = replica.a
     b = replica.b
@@ -399,19 +382,19 @@ function update_invGA!(replica::Replica{W, ComplexF64}, ρ::T) where {W, T}
     @. GA⁻¹ += dGA⁻¹
 end
 
-"""
-    wrap_Gs!(Gτ, Gτ0, G0τ, B, ws)
-    
-    Wrap Green's function at time τ and two time-displaced Green's function Gτ0 and G0τ
-    to the next time slice as
-    G(τ+Δτ) <- B(Δτ)G(τ)B⁻¹(Δτ)
-    G(τ+Δτ, 0) <- B(Δτ)G(τ, 0)
-    G(0, τ+Δτ) <- G(0, τ)B⁻¹(Δτ)
-"""
 function wrap_Gs!(
     Gτ::AbstractMatrix{T}, Gτ0::AbstractMatrix{T}, G0τ::AbstractMatrix{T},
     B::Tb, ws::LDRWorkspace{T, E}
 ) where {T, Tb, E}
+    """
+        wrap_Gs!(Gτ, Gτ0, G0τ, B, ws)
+
+        Wrap Green's function at time τ and two time-displaced Green's function Gτ0 and G0τ
+    to the next time slice as
+        G(τ+Δτ) <- B(Δτ)G(τ)B⁻¹(Δτ)
+        G(τ+Δτ, 0) <- B(Δτ)G(τ, 0)
+        G(0, τ+Δτ) <- G(0, τ)B⁻¹(Δτ)
+    """
     # update G(τ)
     mul!(ws.M, B, Gτ)
     B⁻¹ = ws.M′

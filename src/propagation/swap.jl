@@ -115,7 +115,7 @@ function sweep!(
     end
 
     # At the end of the simulation, recompute all partial factorizations
-    run_full_propagation(walker.Bc, walker.ws, FC = walker.FC)
+    propagate_over_full_space(walker.Bc, walker.ws, FC = walker.FC)
 
     # save Fτs
     copyto!.(walker.F, tmpR)
@@ -230,7 +230,7 @@ function sweep!(
     end
 
     # At the end of the simulation, recompute all partial factorizations
-    run_full_propagation_oneside(walker.Bc, walker.ws, FC = walker.FC)
+    propagate_over_full_space(walker.Bc, walker.ws, FC = walker.FC, singleSided=true)
 
     # save Fτs
     copyto!(walker.F[1], tmpR[1])

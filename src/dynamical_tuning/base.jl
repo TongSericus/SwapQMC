@@ -46,7 +46,7 @@ function TunableHubbardWalker(
 
     G = [Matrix{T}(1.0I, Ns, Ns), Matrix{T}(1.0I, Ns, Ns)]
     ws = ldr_workspace(G[1])
-    F, Bc, FC = run_full_propagation(auxfield, system, qmc, ws)
+    F, Bc, FC = propagate_over_full_space(auxfield, system, qmc, ws)
 
     Fτ = ldrs(G[1], 2)
     Bl = Cluster(Ns, 2 * k)

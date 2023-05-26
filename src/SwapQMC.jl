@@ -9,7 +9,7 @@ module SwapQMC
     import StableLinearAlgebra: mul!, lmul!, rmul!, rdiv!
 
     export System, ExtendedSystem, QMC
-    export Hubbard, BilayerHubbard, IonicHubbard
+    export Hubbard, GenericHubbard
     include("./base/systems.jl")
     include("./base/qmc_variable.jl")
     include("./base/linalg_RDM.jl")

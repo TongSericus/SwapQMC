@@ -46,6 +46,9 @@ struct HubbardGCWalker{T<:Number, Fact<:Factorization{T}, E, C} <: GCWalker
     # Temporal array of matrices with the ith element B̃_i being
     # B̃_i = B_{(i-1)k + 1} ⋯ B_{ik}, where k is the stablization interval defined as qmc.stab_interval
     Bc::Cluster{C}
+
+    ### Date for debugging ###
+    tmp_r::Vector{T}
 end
 
 """
@@ -69,7 +72,7 @@ function HubbardGCWalker(
     G0τ = [Matrix{T}(1.0I, Ns, Ns), Matrix{T}(1.0I, Ns, Ns)]
 
     ws = ldr_workspace(G[1])
-    F, Bc, FC = run_full_propagation(auxfield, system, qmc, ws)
+    F, Bc, FC = propagate_over_full_space(auxfield, system, qmc, ws)
 
     Fτ = ldrs(G[1], 2)
     Bl = Cluster(Ns, 2 * k, T = T)
@@ -92,7 +95,9 @@ function HubbardGCWalker(
         α = [α - 1 1/α - 1; 1/α - 1 α - 1]
     end
 
-    return HubbardGCWalker(α, -weight, sgn, auxfield, F, ws, G, Gτ0, G0τ, FC, Fτ, Bl, Bc)
+    tmp_r = Vector{T}()
+
+    return HubbardGCWalker(α, -weight, sgn, auxfield, F, ws, G, Gτ0, G0τ, FC, Fτ, Bl, Bc, tmp_r)
 end
 
 """

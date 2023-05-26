@@ -1,6 +1,11 @@
-""" 
-    Additional Functions added for StableLinearAlgebra package
 """
+    Extra Linear Algebra Operations
+"""
+
+################################################################
+##### Additional Functions for StableLinearAlgebra package #####
+################################################################
+
 # iteration for destructuring into components
 Base.iterate(S::LDR) = (S.L, Val(:d))
 Base.iterate(S::LDR, ::Val{:d}) = (S.d, Val(:R))
@@ -12,18 +17,18 @@ Base.similar(S::LDR{T, E}) where {T, E} = ldr(S)
 # Diagonalization
 LinearAlgebra.eigvals(F::LDR{T, E}) where {T, E} = eigvals(Diagonal(F.d) * F.R * F.L, sortby = abs)
 
-"""
-    Matrix Operations for Reduced Density Matrix
-"""
+########################################################
+##### Matrix Operations for Reduced Density Matrix #####
+########################################################
 
-"""
-    det_UpV(U::LDR, V::LDR, ws::LDRWorkspace)
-
-    Compute the numerically stable determinant G=det(U+V), where U and V are represented by factorizations,
-    using the formula
-    G = det(U + V) = det(Lᵤ * Dᵤ₊ * M * Dᵥ₊ * Rᵥ) with |det(Lᵤ)| = |det(Rᵥ)| = 1
-"""
 function det_UpV(U::LDR{T,E}, V::LDR{T,E}, ws::LDRWorkspace{T,E}) where {T,E}
+    """
+        det_UpV(U::LDR, V::LDR, ws::LDRWorkspace)
+
+        Compute the numerically stable determinant G=det(U+V), where U and V are represented by factorizations,
+    using the formula
+        G = det(U + V) = det(Lᵤ * Dᵤ₊ * M * Dᵥ₊ * Rᵥ) with |det(Lᵤ)| = |det(Rᵥ)| = 1
+    """
     Lᵤ = U.L
     dᵤ = U.d
     Rᵤ = U.R
@@ -91,12 +96,12 @@ function det_UpV(U::LDR{T,E}, V::LDR{T,E}, ws::LDRWorkspace{T,E}) where {T,E}
     return real(logdetUpV), sgndetUpV
 end
 
-"""
-    ImA!(G, A, ws)
-        
-    Stable calculation of G = I - A
-"""
 function ImA!(G::LDR{T,E}, A::LDR{T,E}, ws::LDRWorkspace{T,E}) where {T,E}
+    """
+        ImA!(G, A, ws)
+        
+        Stable calculation of G = I - A
+    """
     Lₐ = A.L
     dₐ = A.d
     Rₐ = A.R
@@ -134,9 +139,9 @@ compute_HA!(HA::LDR{T,E}, ImGA::LDR{T,E}, ws::LDRWorkspace{T,E}) where {T, E} = 
 
 merge_HA!(HA::LDR{T,E}, HA′::LDR{T,E}, ws::LDRWorkspace{T,E})  where {T, E} = rmul!(HA, HA′, ws)
 
-"""
-    Matrix Operations for Swap Algorithm
-"""
+################################################
+##### Matrix Operations for Swap Algorithm #####
+################################################
 
 reset!(U::AbstractMatrix) = let
     @. U = 0.0
@@ -148,12 +153,12 @@ reset!(U::LDR{T,E}) where {T, E} = let
     @. U.R = 0.0
 end
 
-"""
-    expand!(U, V, LA, LB, ridx)
-
-    Fill the matrix/decomposition U by expanding the matrix/decomposition V via inserting a unit matrix
-"""
 function expand!(U::AbstractMatrix{T}, V::AbstractMatrix{T}, LA::Int, LB::Int, ridx::Int) where T
+    """
+        expand!(U, V, LA, LB, ridx)
+
+        Fill the matrix/decomposition U by expanding the matrix/decomposition V via inserting a unit matrix
+    """
     reset!(U)
     L = LA + LB
 
@@ -236,10 +241,10 @@ function expand!(U::LDR{T,E}, V::LDR{T,E}, ridx::Int) where {T, E}
 end
 
 ### New Functions ###
-"""
-    Compute C = Aᵀ * B
-"""
 function transpose_mul!(C::AbstractVector, A::AbstractVector, B::AbstractMatrix)
+    """
+        Compute C = Aᵀ * B
+    """
     @inbounds @fastmath for i in eachindex(C)
         Ci = zero(eltype(C))
         for j in eachindex(A)
@@ -249,16 +254,16 @@ function transpose_mul!(C::AbstractVector, A::AbstractVector, B::AbstractMatrix)
     end
 end
 
-"""
-    inv_Grover!(GA⁻¹, GA₁, GA₂, ws)
-
-    Compute the Grover inverse GA⁻¹ = [GA1 * GA2 + (I - GA1) * (I - GA2)]⁻¹
-"""
 function inv_Grover!(
     GA⁻¹::AbstractMatrix{T},
     GA₁::AbstractMatrix{T}, GA₂::AbstractMatrix{T}, 
     ws::LDRWorkspace{T, E}
 ) where {T, E}
+    """
+        inv_Grover!(GA⁻¹, GA₁, GA₂, ws)
+
+        Compute the Grover inverse GA⁻¹ = [GA1 * GA2 + (I - GA1) * (I - GA2)]⁻¹
+    """
     mul!(GA⁻¹, GA₁, GA₂)
 
     ImGA₁ = ws.M′
