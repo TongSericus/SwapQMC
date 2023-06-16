@@ -72,7 +72,7 @@ function HubbardGCWalker(
     G0τ = [Matrix{T}(1.0I, Ns, Ns), Matrix{T}(1.0I, Ns, Ns)]
 
     ws = ldr_workspace(G[1])
-    F, Bc, FC = propagate_over_full_space(auxfield, system, qmc, ws)
+    F, Bc, FC = build_propagator(auxfield, system, qmc, ws)
 
     Fτ = ldrs(G[1], 2)
     Bl = Cluster(Ns, 2 * k, T = T)
@@ -106,9 +106,6 @@ end
     Update the Green's function and weight of the walker
 """
 function update!(walker::HubbardGCWalker; identicalSpin::Bool = false)
-    """
-        Update the Green's function, weight of the walker
-    """
     weight = walker.weight
     sgn = walker.sign
     G = walker.G

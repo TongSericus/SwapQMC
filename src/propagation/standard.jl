@@ -36,8 +36,10 @@ function update_cluster!(
             σj = flip_HSField(σ[j])
             # compute ratios of determinants through G
             r, d_up, d_dn = compute_Metropolis_ratio(G, α, σj, j)
+            qmc.saveRatio && push!(walker.tmp_r, r)
+            u = qmc.useHeatbath ? real(r) / (1 + real(r)) : real(r)
 
-            if rand() < r / (1 + r)
+            if rand() < u
                 # accept the move, update the field and the Green's function
                 walker.auxfield[j, l] *= -1
                 update_G!(G[1], α[1, σj], d_up, j, ws)
@@ -99,7 +101,7 @@ function sweep!(
     end
 
     # At the end of the simulation, recompute all partial factorizations
-    propagate_over_full_space(walker.Bc, walker.ws, FC = walker.FC)
+    build_propagator(walker.Bc, walker.ws, FC = walker.FC)
 
     # save Fτs
     copyto!.(walker.F, tmpR)
@@ -167,15 +169,15 @@ function update_cluster!(
     return nothing
 end
 
+"""
+    sweep!(system::System, qmc::QMC, walker::Walker)
+
+    Sweep a single walker over the imaginary time from 0 to β
+"""
 function sweep!(
     system::Hubbard, qmc::QMC, 
     walker::HubbardGCWalker{ComplexF64, Ft, E, C}
 ) where {Ft, E, C}
-    """
-        sweep!(system, qmc, walker)
-
-        Sweep a single walker over the imaginary time from 0 to β
-    """
     K = qmc.K
 
     ws = walker.ws
@@ -199,7 +201,7 @@ function sweep!(
     end
 
     # At the end of the simulation, recompute all partial factorizations
-    propagate_over_full_space(walker.Bc, walker.ws, FC = walker.FC, singleSided=true)
+    build_propagator(walker.Bc, walker.ws, FC = walker.FC, singleSided=true)
 
     # save Fτs
     copyto!(walker.F[1], tmpR[1])

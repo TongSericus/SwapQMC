@@ -38,8 +38,10 @@ function update_cluster!(
             σj = flip_HSField(σ[j])
             # compute ratios of determinants through G
             r, d_up, d_dn = compute_Metropolis_ratio(G, α, σj, sidx)
+            qmc.saveRatio && push!(walker.tmp_r, r)
+            u = qmc.useHeatbath ? real(r) / (1 + real(r)) : real(r)
 
-            if rand() < r
+            if rand() < u
                 # accept the move, update the field and the Green's function
                 walker.auxfield[j, l] *= -1
                 update_G!(G[1], α[1, σj], d_up, sidx, ws)
@@ -115,7 +117,7 @@ function sweep!(
     end
 
     # At the end of the simulation, recompute all partial factorizations
-    propagate_over_full_space(walker.Bc, walker.ws, FC = walker.FC)
+    build_propagator(walker.Bc, walker.ws, FC = walker.FC)
 
     # save Fτs
     copyto!.(walker.F, tmpR)
@@ -169,8 +171,10 @@ function update_cluster!(
             σj = flip_HSField(σ[j])
             # compute ratios of determinants through G
             r, d = compute_Metropolis_ratio(G, α[1, σj], sidx)
+            qmc.saveRatio && push!(walker.tmp_r, r)
+            u = qmc.useHeatbath ? real(r) / (1 + real(r)) : real(r)
 
-            if rand() < r / (1 + r)
+            if rand() < u
                 # accept the move, update the field and the Green's function
                 walker.auxfield[j, l] *= -1
                 update_G!(G, α[1, σj], d, sidx, ws)
@@ -230,7 +234,7 @@ function sweep!(
     end
 
     # At the end of the simulation, recompute all partial factorizations
-    propagate_over_full_space(walker.Bc, walker.ws, FC = walker.FC, singleSided=true)
+    build_propagator(walker.Bc, walker.ws, FC = walker.FC, singleSided=true)
 
     # save Fτs
     copyto!(walker.F[1], tmpR[1])

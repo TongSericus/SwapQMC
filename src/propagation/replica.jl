@@ -77,7 +77,8 @@ end
 function sweep!(
     system::Hubbard, qmc::QMC, 
     replica::Replica{W, ComplexF64, Float64},
-    walker::W, ridx::Int
+    walker::W, ridx::Int;
+    isJumpReplica::Bool=true
 ) where W
     """
         sweep!(system, qmc, replica, walker, ridx)
@@ -129,19 +130,21 @@ function sweep!(
     end
 
     # At the end of the simulation, recompute all partial factorizations
-    propagate_over_full_space(walker.Bc, walker.ws, FC = walker.FC, singleSided=true)
+    build_propagator(walker.Bc, walker.ws, FC = walker.FC, singleSided=true)
 
     # save Bτ
     copyto!(walker.F[1], Bτ)
     # then reset Bτ to unit matrix
     ldr!(Bτ, I)
 
-    # switch the matrix I - 2*GA to the next replica
-    Im2GA = replica.Im2GA
-    for i in CartesianIndices(Im2GA)
-        @inbounds Im2GA[i] = -2 * G₀[i]
+    isJumpReplica && begin
+       # switch the matrix I - 2*GA to the next replica
+        Im2GA = replica.Im2GA
+        for i in CartesianIndices(Im2GA)
+            @inbounds Im2GA[i] = -2 * G₀[i]
+        end
+        Im2GA[diagind(Im2GA)] .+= 1 
     end
-    Im2GA[diagind(Im2GA)] .+= 1
 
     return nothing
 end
