@@ -13,7 +13,11 @@ module SwapQMC
     include("./base/systems.jl")
     include("./base/qmc_variable.jl")
     include("./base/linalg_RDM.jl")
+    include("./base/linalg_SVD.jl")
     include("./base/matrix_generator.jl")
+    export hopping_matrix_Hubbard_1d, hopping_matrix_ssh_1d, 
+           hopping_matrix_Hubbard_2d, hopping_matrix_ssh_2d
+    include("./base/one_body_matrices.jl")
 
     export HubbardGCWalker, HubbardGCSwapper,
            Replica,
@@ -24,6 +28,13 @@ module SwapQMC
     include("./propagation/standard.jl")
     include("./propagation/swap.jl")
     include("./propagation/replica.jl")
+
+    # ground state
+    export HubbardWalker
+    export trial_wf_free
+    include("./trial_wavefunctions.jl")
+    include("./walker_gs.jl")
+    include("./operations_gs.jl")
 
     export TunableHubbard, TunableHubbardWalker,
            MuTuner, dynamical_tuning
