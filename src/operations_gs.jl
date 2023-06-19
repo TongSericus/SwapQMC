@@ -27,12 +27,14 @@ end
     
     compute the ground state Green's function given the walker
 """
-function compute_G!(walker::GSWalker, spin::Int)
+function compute_G!(
+    walker::GSWalker, spin::Int; 
+    Bl::LDR = walker.Fl[spin], Br::LDR = walker.Fr[spin]
+)
     G = walker.G[spin]
+    # current LDR decomposition can't deal with non-square matrix
     φ₀ = walker.φ₀[spin]
     φ₀ᵀ= walker.φ₀T[spin]
-    Bl = walker.Fl[spin]
-    Br = walker.Fr[spin]
     Ul = walker.Ul[spin]
     Ur = walker.Ur[spin]
 

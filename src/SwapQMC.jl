@@ -35,6 +35,7 @@ module SwapQMC
     include("./trial_wavefunctions.jl")
     include("./walker_gs.jl")
     include("./operations_gs.jl")
+    include("./propagation/standard_gs.jl")
 
     export TunableHubbard, TunableHubbardWalker,
            MuTuner, dynamical_tuning

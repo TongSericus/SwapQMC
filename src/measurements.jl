@@ -72,8 +72,8 @@ function measure_EE!(
     Pn2₊ = etgm.Pn2₊
     Pn2₋ = etgm.Pn2₋
 
-    update!(walker₁, identicalSpin=extsys.system.useComplexHST)
-    update!(walker₂, identicalSpin=extsys.system.useComplexHST)
+    update!(walker₁, identicalSpin=extsys.system.useChargeHST)
+    update!(walker₂, identicalSpin=extsys.system.useChargeHST)
 
     G₁ = walker₁.G
     G₂ = walker₂.G
@@ -188,7 +188,7 @@ function measure_Pn!(
     Pn_estimator(GA, ImGA, ws, HA = etgdata.HA₁, P = etgdata.P)
     @views copyto!(Pn2₊, etgdata.P[:, end])
 
-    extsys.system.useComplexHST && (@views copyto!(Pn2₋, etgdata.P[:, end]); return nothing)
+    extsys.system.useChargeHST && (@views copyto!(Pn2₋, etgdata.P[:, end]); return nothing)
 
     ### Spin-down part ###
     @views ldr!(GA, G₋[1:LA, 1:LA], ws)

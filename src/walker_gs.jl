@@ -4,7 +4,7 @@
 
 abstract type GSWalker end
 
-struct HubbardWalker{T<:Number, wf<:AbstractMatrix, Fact<:Factorization{T}, E, C} <: GSWalker
+struct HubbardWalker{T<:Number, wf<:AbstractMatrix, Fact<:Factorization{T}, C} <: GSWalker
     """
         Hubbard-type walker where the two-body term is only on-site and a fast
         update scheme is available
@@ -16,12 +16,12 @@ struct HubbardWalker{T<:Number, wf<:AbstractMatrix, Fact<:Factorization{T}, E, C
     φ₀T::Vector{wf}
 
     auxfield::Matrix{Int64}
-    # imaginary time from θ to 2θ
+    # factorization for the left propagator matrix
     Fl::Vector{Fact}
-    # imaginary time from 0 to θ
+    # factorization for the right propagator matrix
     Fr::Vector{Fact}
 
-    ws::LDRWorkspace{T, E}
+    ws::LDRWorkspace{T}
     # Green's function and the temporal data to compute G
     G::Vector{Matrix{T}}
     Ul::Vector{Matrix{T}}
@@ -32,18 +32,13 @@ struct HubbardWalker{T<:Number, wf<:AbstractMatrix, Fact<:Factorization{T}, E, C
     G0τ::Vector{Matrix{T}}
 
     ### Temporal data to avoid memory allocations ###
-    # All partial factorizations
-    FCl::Cluster{Fact}
-    FCr::Cluster{Fact}
-    # Factorization of two unit matrices for spin-up and spin-down
-    Fτ::Vector{Fact}
-    # Temporal array of matrices with the ith element B̃_i being
-    # B̃_i = B_{(cidx-1)k + i}, where cidx is the index of the current imaginary time slice to be updated
-    # Note that the spin-up and spin-down matrices are strored as the first and the second half of the array, respectively
+    # partial factorizations for the left and the right propagator matrices
+    Fcl::Cluster{Fact}
+    Fcr::Cluster{Fact}
+    # Temporal array of matrices for cluster sweep
     Bl::Cluster{C}
-    # Temporal array of matrices 
-    Bcl::Cluster{C}
-    Bcr::Cluster{C}
+    # Temporal matrix to store the product of a cluster of matrices
+    Bc::Vector{C}
 
     ### Date for debugging ###
     tmp_r::Vector{T}
@@ -73,12 +68,13 @@ function HubbardWalker(
     # build the initial propator with random configurations
     ws = ldr_workspace(G[1])
     θ = div(system.L, 2)
-    @views Fr, Bcr, FCr = build_propagator(
+    @views Fr, Bcr, Fcr = build_propagator(
                             auxfield[:, 1:θ], system, qmc, ws,
+                            isReverse=false,
                             K=div(qmc.K,2), 
                             K_interval=qmc.K_interval[1:div(qmc.K,2)]
                         )
-    @views Fl, Bcl, FCl = build_propagator(
+    @views Fl, Bcl, Fcl = build_propagator(
                             auxfield[:, θ+1:end], system, qmc, ws,
                             K=div(qmc.K,2),
                             K_interval=qmc.K_interval[div(qmc.K,2)+1:end]
@@ -95,7 +91,7 @@ function HubbardWalker(
     G0τ[1][diagind(G0τ[1])] .-= 1
     G0τ[2][diagind(G0τ[2])] .-= 1
 
-    if system.useComplexHST
+    if system.useChargeHST
         α = system.auxfield[1] / system.auxfield[2]
         α = [α - 1 1/α - 1; α - 1 1/α - 1]
     else
@@ -104,9 +100,15 @@ function HubbardWalker(
     end
 
     # initialize temporal data for storage
-    Fτ = ldrs(G[1], 2)
     Bl = Cluster(Ns, 2 * qmc.stab_interval, T = T)
+    Bc = [copy(Bl.B[1]), copy(Bl.B[1])]
     tmp_r = Vector{T}()
 
-    return HubbardWalker(α, φ₀, φ₀T, auxfield, Fl, Fr, ws, G, Ul, Ur, Gτ0, G0τ, FCl, FCr, Fτ, Bl, Bcl, Bcr, tmp_r)
+    return HubbardWalker{T, eltype(φ₀), eltype(Fl), eltype(Bl.B)}(
+        α, φ₀, φ₀T, 
+        auxfield, Fl, Fr, ws, 
+        G, Ul, Ur, Gτ0, G0τ, 
+        Fcl, Fcr, Bl, Bc,
+        tmp_r
+    )
 end
