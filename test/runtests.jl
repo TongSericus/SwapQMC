@@ -71,7 +71,7 @@ end
         # β, L
         16.0, 160,
         # if use charge decomposition
-        useComplexHST = true,
+        useChargeHST = true,
         # if use first-order Trotteriaztion
         useFirstOrderTrotter = false
     )
@@ -170,7 +170,7 @@ end
         # β, L
         16.0, 160,
         # if use charge decomposition
-        useComplexHST = true,
+        useChargeHST = true,
         # if use first-order Trotteriaztion
         useFirstOrderTrotter = false
     )
