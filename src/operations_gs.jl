@@ -46,7 +46,7 @@ function compute_G!(
     for i in CartesianIndices(G)
         @inbounds G[i] = -G[i]
     end
-    G[diagind(G)] .+= 1 
+    G[diagind(G)] .+= 1
 
     return G
 end

@@ -2,6 +2,19 @@
     Projective Monte Carlo Propagation in the regular Z space
 """
 
+function sweep!(system::Hubbard, qmc::QMC, walker::HubbardWalker)
+    Θ = div(qmc.K,2)
+
+    if system.useChargeHST
+        sweep!_symmetric(system, qmc, walker, collect(Θ+1:2Θ))
+        sweep!_symmetric(system, qmc, walker, collect(2Θ:-1:Θ+1))
+        sweep!_symmetric(system, qmc, walker, collect(Θ:-1:1))
+        sweep!_symmetric(system, qmc, walker, collect(1:Θ))
+
+        return nothing
+    end
+end
+
 ###################################################
 ##### Symmetric Sweep for Charge HS Transform #####
 ###################################################
@@ -77,7 +90,7 @@ function update_cluster!_symmetric(
 
     # propagate from τ+k to τ
     for i in k:-1:1
-        
+
         l = (cidx - 1) * qmc.stab_interval + i
         @views σ = walker.auxfield[:, l]
 
@@ -109,52 +122,74 @@ end
 
 function sweep!_symmetric(
     system::Hubbard, qmc::QMC, 
-    walker::HubbardWalker, slice::UnitRange{Int}
+    walker::HubbardWalker, slice::Vector{Int}
 )
-    direction = slice.start < slice.stop ? 1 : 2
+    direction = slice[1] < slice[end] ? 1 : 2
 
-    K = qmc.K
+    Θ = div(qmc.K,2)
 
     ws = walker.ws
     Bc = walker.Bc[1]
+    Fτ, F0, _ = walker.Fτ
     Fl = walker.Fl[1]
     Fr = walker.Fr[1]
     Fcl = walker.Fcl.B
     Fcr = walker.Fcr.B
 
     # propagate from θ to 2θ or from 0 to θ
-    direction == 1 && begin 
+    direction == 1 && begin
         for (i, cidx) in enumerate(slice)
             update_cluster!_symmetric(walker, system, qmc, cidx, direction=1)
 
             # multiply the updated slice to the right factorization on the left
+            copyto!(Fτ, Fr)
             lmul!(Bc, Fr, ws)
-            # save the multiplied results to the partial factorizations
-            copyto!(Fcr[end-i+1-K], Fr)
-            # move the left factorization to the next cluster
-            copyto!(Fl, Fcl[i+1])
 
-            # G needs to be periodically recomputed from scratch
-            compute_G!(walker, 1, Bl=Fcl[end-i+1-K])
+            if cidx > Θ         # sweeping the left configurations
+                # G needs to be periodically recomputed from scratch
+                compute_G!(walker, 1, Bl=Fcl[i])
+                # save the multiplied results to the partial factorizations
+                copyto!(Fcl[i], Fτ)
+            elseif cidx <= Θ    # sweeping the right configurations
+                # G needs to be periodically recomputed from scratch
+                compute_G!(walker, 1, Bl=Fcr[i])
+                # save the multiplied results to the partial factorizations
+                copyto!(Fcr[i], Fτ)
+            end
         end
+
+        # reset left factorization at t=2θ
+        slice[end] == qmc.K ? ldr!(Fl, I) : (copyto!(Fl, F0); copyto!(F0, Fr))
+        # copy green's function to the spin-down sector
         copyto!(walker.G[2], walker.G[1])
 
         return nothing
     end
 
     # propagate from 2θ to θ or from θ to 0
-    for cidx in slice
+    for (i, cidx) in zip(Iterators.reverse(eachindex(slice)), slice)
         update_cluster!_symmetric(walker, system, qmc, cidx, direction=2)
 
         # multiply the updated slice to the left factorization on the right
+        copyto!(Fτ, Fl)
         rmul!(Fl, Bc, ws)
-        # save the multiplied results to the partial factorizations
-        copyto!(Fcl[end-i+1-K], Fl)
 
-        # G needs to be periodically recomputed from scratch
-        compute_G!(walker, 1, Br=Fcr[end-i+1-K])
+        if cidx > Θ         # sweeping the left configurations
+            # G needs to be periodically recomputed from scratch
+            compute_G!(walker, 1, Br=Fcl[i])
+            # save the multiplied results to the partial factorizations
+            copyto!(Fcl[i], Fτ)
+        elseif cidx <= Θ    # sweeping the right configurations
+            # G needs to be periodically recomputed from scratch
+            compute_G!(walker, 1, Br=Fcr[i])
+            # save the multiplied results to the partial factorizations
+            copyto!(Fcr[i], Fτ)
+        end
     end
 
+    # reset right factorization at t=0
+    slice[end] == 1 ? ldr!(Fr, I) : (copyto!(Fr, F0); copyto!(F0, Fl))
+    # copy green's function to the spin-down sector
     copyto!(walker.G[2], walker.G[1])
 
     return nothing

@@ -32,6 +32,8 @@ struct HubbardWalker{T<:Number, wf<:AbstractMatrix, Fact<:Factorization{T}, C} <
     G0τ::Vector{Matrix{T}}
 
     ### Temporal data to avoid memory allocations ###
+    # a transient factorization
+    Fτ::Vector{Fact}
     # partial factorizations for the left and the right propagator matrices
     Fcl::Cluster{Fact}
     Fcr::Cluster{Fact}
@@ -100,6 +102,8 @@ function HubbardWalker(
     end
 
     # initialize temporal data for storage
+    Fτ = ldrs(G[1], 3)
+    copyto!.(Fτ[2:3], Fr)
     Bl = Cluster(Ns, 2 * qmc.stab_interval, T = T)
     Bc = [copy(Bl.B[1]), copy(Bl.B[1])]
     tmp_r = Vector{T}()
@@ -108,7 +112,7 @@ function HubbardWalker(
         α, φ₀, φ₀T, 
         auxfield, Fl, Fr, ws, 
         G, Ul, Ur, Gτ0, G0τ, 
-        Fcl, Fcr, Bl, Bc,
+        Fτ, Fcl, Fcr, Bl, Bc,
         tmp_r
     )
 end
