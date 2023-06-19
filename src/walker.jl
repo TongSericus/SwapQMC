@@ -13,6 +13,13 @@ Cluster(Ns::Int, N::Int; T::DataType = Float64) = (T == Float64) ?
                                                 Cluster(B = [Matrix(((1.0+0.0im)*I)(Ns)) for _ in 1 : N])
 Cluster(A::Factorization{T}, N::Int) where T = Cluster(B = [similar(A) for _ in 1 : N])
 
+Base.cat(C1::Cluster{T}, C2::Cluster{T}; isSpinful::Bool = true) where T = begin
+    isSpinful || return Cluster(B = vcat(C1.B, C2.B))
+    θ1 = div(length(C1.B), 2)
+    θ2 = div(length(C2.B), 2)
+    return @views Cluster(B = vcat(C1.B[1:θ1], C2.B[1:θ2], C1.B[θ1+1:end], C2.B[θ2+1:end]))
+end
+
 ### Random walker definitions ###
 abstract type GCWalker end
 
@@ -87,7 +94,7 @@ function HubbardGCWalker(
     G0τ[1][diagind(G0τ[1])] .-= 1
     G0τ[2][diagind(G0τ[2])] .-= 1
 
-    if system.useComplexHST
+    if system.useChargeHST
         α = system.auxfield[1] / system.auxfield[2]
         α = [α - 1 1/α - 1; α - 1 1/α - 1]
     else

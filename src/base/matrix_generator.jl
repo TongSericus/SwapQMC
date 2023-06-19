@@ -11,12 +11,12 @@ function auxfield_matrix_hubbard(
     σ::AbstractArray{Int}, auxfield::Vector{T};
     V₊ = zeros(T, length(σ)),
     V₋ = zeros(T, length(σ)),
-    isComplexHST::Bool = false
+    isChargeHST::Bool = false
 ) where T
     """
         Hubbard HS field matrix generator
     """
-    isComplexHST && begin
+    isChargeHST && begin
         for i in eachindex(σ)
             isone(σ[i]) ? (idx₊ = idx₋ = 1) : (idx₊ = idx₋ = 2)
             V₊[i] = auxfield[idx₊]
@@ -51,7 +51,7 @@ function imagtime_propagator!(
     auxfield_matrix_hubbard(
         σ, system.auxfield, 
         V₊=system.V₊, V₋=system.V₋,
-        isComplexHST = system.useComplexHST
+        isChargeHST = system.useChargeHST
     )
     V₊, V₋ = system.V₊, system.V₋
 
@@ -84,7 +84,7 @@ function imagtime_propagator!(
     auxfield_matrix_hubbard(
         σ, system.auxfield, 
         V₊=system.V₊, V₋=system.V₋,
-        isComplexHST = system.useComplexHST
+        isChargeHST = system.useChargeHST
     )
     V₊ = system.V₊
 

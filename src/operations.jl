@@ -1,7 +1,6 @@
 ###################################
 ##### Basic operations in QMC #####
 ###################################
-
 """
     compute_Metropolis_ratio(G, α, i, sidx)
 
@@ -56,46 +55,88 @@ end
     G ← G - α_{i, σ} / d_{i, i} * u * wᵀ
     where u = (I - G)e₁, w = Gᵀe₁
 """
-function update_G!(G::AbstractMatrix{T}, α::Ta, d::Td, sidx::Int64, ws::LDRWorkspace{T, E}) where {T, Ta, Td, E}
+function update_G!(
+    G::AbstractMatrix{T}, 
+    α::Ta, d::Td, sidx::Int64, 
+    ws::LDRWorkspace{T, E}; direction::Int = 1
+) where {T, Ta, Td, E}
     ImG = ws.M
     dG = ws.M′
-    g = @view G[sidx, :]
-    Img = @view ImG[:, sidx]
+
+    direction == 1 && begin
+        g = @view G[sidx, :]
+        Img = @view ImG[:, sidx]
+
+        # compute I - G
+        for i in eachindex(g)
+            @inbounds Img[i] = -G[i, sidx]
+        end
+        Img[sidx] += 1
+
+        # compute (I - G)eᵢ * Gᵀeᵢ
+        @views kron!(dG, α / d, Img, g)
+
+        return G .-= dG
+    end
+
+    g = @view G[:, sidx]
+    Img = @view ImG[sidx, :]
 
     # compute I - G
     for i in eachindex(g)
-        @inbounds Img[i] = -G[i, sidx]
+        @inbounds Img[i] = -G[sidx, i]
     end
     Img[sidx] += 1
 
-    # compute (I - G)eᵢ * Gᵀeᵢ
-    @views kron!(dG, α / d, Img, g)
+    # compute Geᵢ * (I-G)ᵀeᵢ
+    @views kron!(dG, α / d, g, Img)
 
-    G .-= dG
+    return G .-= dG
 end
 
 """
     wrap_G!(G, B, ws)
 
-    Compute G ← B * G * B⁻¹
+    Compute the wrapped Green's function that would be
+    used for the propagation in the next time slice, i.e.,
+        G ← B * G * B⁻¹ (direction = 1), or
+        G ← B⁻¹ * G * B (direction = 2)
 """
-function wrap_G!(G::AbstractMatrix{T}, B::AbstractMatrix{TB}, ws::LDRWorkspace{T, E}) where {T, TB, E}
-    mul!(ws.M, B, G)
-    
+function wrap_G!(
+    G::AbstractMatrix{T}, B::AbstractMatrix{Tb}, ws::LDRWorkspace{T, E};
+    direction::Int = 1
+) where {T, Tb, E}    
+
     B⁻¹ = ws.M′
     copyto!(B⁻¹, B)
     inv_lu!(B⁻¹, ws.lu_ws)
-    mul!(G, ws.M, B⁻¹)
+    
+    direction == 1 ? (
+                        mul!(ws.M, B, G);
+                        mul!(G, ws.M, B⁻¹)
+                    ) : 
+                    (
+                        mul!(ws.M, B⁻¹, G);
+                        mul!(G, ws.M, B)
+                    )
+    return G
 end
 
 """
     wrap_G!(G, B, B⁻¹, ws)
 
-    Compute G ← B * G * B⁻¹
+    Compute the wrapped Green's function, and B⁻¹ is given.
+    Note: B and B⁻¹ are not necessarily matrices but can be checkerboard decompositions.
 """
-function wrap_G!(G::AbstractMatrix{T}, B::Tb, B⁻¹::Tb, ws::LDRWorkspace{T, E}) where {T, Tb, E}
-    mul!(ws.M, B, G)
+function wrap_G!(
+    G::AbstractMatrix{T}, B::Tb, B⁻¹::Tb, 
+    ws::LDRWorkspace{T, E}
+) where {T, Tb, E}
+
+    mul!(ws.M, B, G);
     mul!(G, ws.M, B⁻¹)
+
+    return G
 end
 
 flip_HSField(σ::Int) = Int64((σ + 1) / 2 + 1)
@@ -124,11 +165,13 @@ end
 ##### Full Imaginary-time Propagations #####
 ############################################
 """
+    build_propagator(auxfield, system, qmc, ws)
+
     Propagate over the full space-time lattice given the auxiliary field configuration
 """
 function build_propagator(
     auxfield::AbstractMatrix{Int64}, system::System, qmc::QMC, ws::LDRWorkspace{T,E}; 
-    isReverse::Bool = true, direction::Int = 1, K = qmc.K, K_interval = qmc.K_interval
+    isReverse::Bool = true, K = qmc.K, K_interval = qmc.K_interval
 ) where {T, E}
     V = system.V
     si = qmc.stab_interval
@@ -182,6 +225,8 @@ function build_propagator(
 end
 
 """
+    build_propagator(matrix_cluster, ws)
+
     Propagate over the full space-time lattice given the matrix clusters
 """
 function build_propagator(

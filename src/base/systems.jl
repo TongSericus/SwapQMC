@@ -20,7 +20,7 @@ struct GenericHubbard{T, Tk} <: Hubbard
     L::Int64
     
     ### Automatically-generated Constants ###
-    useComplexHST::Bool
+    useChargeHST::Bool
     auxfield::Vector{T}
     V₊::Vector{T}
     V₋::Vector{T}
@@ -36,7 +36,7 @@ struct GenericHubbard{T, Tk} <: Hubbard
         Ns::Tuple{Int64, Int64, Int64}, N::Tuple{Int64, Int64},
         T::AbstractMatrix, U::Float64,
         μ::Float64, β::Float64, L::Int64;
-        useComplexHST::Bool = false,
+        useChargeHST::Bool = false,
         useFirstOrderTrotter::Bool = false
     )
         Δτ = β / L
@@ -47,7 +47,7 @@ struct GenericHubbard{T, Tk} <: Hubbard
         ### HS transform ###
         # complex HS transform is more stable for entanglement measures
         # see PRE 94, 063306 (2016) for explanations
-        if useComplexHST
+        if useChargeHST
             γ = acosh(exp(-Δτ * U / 2) + 0im)
             # use symmetric Hubbard potential
             auxfield = [exp(γ), exp(-γ)]
@@ -69,7 +69,7 @@ struct GenericHubbard{T, Tk} <: Hubbard
             Ns, V, 
             N, T, U,
             μ, β, L,
-            useComplexHST, auxfield, V₊, V₋,
+            useChargeHST, auxfield, V₊, V₋,
             useFirstOrderTrotter,
             Bk, Bk⁻¹
         )
