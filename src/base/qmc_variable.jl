@@ -20,7 +20,7 @@ struct QMC
         system::System, 
         nwarmups::Int64, nsamples::Int64, measure_interval::Int64, 
         stab_interval::Int64, update_interval::Int64;
-        useHeatbath::Bool = false,
+        useHeatbath::Bool = true,
         saveRatio::Bool = false
     )
         # number of clusters

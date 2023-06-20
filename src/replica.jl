@@ -2,7 +2,7 @@
     Define the replica
 """
 
-struct Replica{W<:GCWalker, T, E}
+struct Replica{W, T, E}
     # partition
     Aidx::Vector{Int64}
 

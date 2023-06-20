@@ -282,7 +282,8 @@ end
 function compute_Metropolis_ratio(
     system::System,
     replica::Replica{W, ComplexF64}, walker::W,
-    α::Ta, sidx::Int, ridx::Int
+    α::Ta, sidx::Int, ridx::Int;
+    direction::Int = 1
 ) where {W, Ta}
 
     # set alias
@@ -291,14 +292,25 @@ function compute_Metropolis_ratio(
     a = replica.a
     b = replica.b
     Gτ = walker.G[1][sidx, sidx]
-    G0τ = walker.G0τ[1]
-    Gτ0 = walker.Gτ0[1]
+
+    # used in the GS; direction=2 -> back propagation
+    direction == 1 ? (
+            Bk = system.Bk;
+            Bk⁻¹ = system.Bk⁻¹;
+            G0τ = walker.G0τ[1];
+            Gτ0 = walker.Gτ0[1]
+        ) : 
+        (
+            Bk = system.Bk⁻¹; 
+            Bk⁻¹ = system.Bk;
+            G0τ = walker.Gτ0[1];
+            Gτ0 = walker.G0τ[1]
+        )
 
     # compute Γ = a * bᵀ
     if system.useFirstOrderTrotter  # asymmetric case
         ridx == 1 ? 
             begin
-                @views mul!(a, GA⁻¹, G0τ[Aidx, sidx])
                 @views mul!(a, GA⁻¹, G0τ[Aidx, sidx])
                 @views transpose_mul!(b, Gτ0[sidx, Aidx], replica.Im2GA)
             end :
@@ -310,8 +322,6 @@ function compute_Metropolis_ratio(
                 @views copyto!(b, Gτ0[sidx, Aidx])
             end
     else                            # symmetric case
-        Bk = system.Bk
-        Bk⁻¹ = system.Bk⁻¹
         # update the first replica
         ridx == 1 ? 
             begin
@@ -367,23 +377,41 @@ end
 function update_Gτ0!(
     Gτ0::AbstractMatrix{T}, γ::Ta, 
     Gτ::AbstractMatrix{T},
-    sidx::Int64, ws::LDRWorkspace{T, E}
+    sidx::Int64, ws::LDRWorkspace{T, E};
+    direction::Int = 1
 ) where {T, Ta, E}
     GτmI = ws.M
     dGτ0 = ws.M′
-    g = @view Gτ[sidx, :]
-    gτmI = @view GτmI[:, sidx]
+
+    direction == 1 && begin
+        g = @view Gτ[sidx, :]
+        gτmI = @view GτmI[:, sidx]
+
+        # compute I - G
+        for i in eachindex(g)
+            @inbounds gτmI[i] = Gτ[i, sidx]
+        end
+        gτmI[sidx] -= 1
+
+        # compute (I - G)eᵢ * Gᵀeᵢ
+        @views kron!(dGτ0, γ, gτmI, Gτ0[sidx, :])
+
+        return @. Gτ0 += dGτ0
+    end
+
+    g = @view Gτ[:, sidx]
+    gτmI = @view GτmI[sidx, :]
 
     # compute I - G
     for i in eachindex(g)
-        @inbounds gτmI[i] = Gτ[i, sidx]
+        @inbounds gτmI[i] = Gτ[sidx, i]
     end
     gτmI[sidx] -= 1
 
     # compute (I - G)eᵢ * Gᵀeᵢ
-    @views kron!(dGτ0, γ, gτmI, Gτ0[sidx, :])
+    @views kron!(dGτ0, γ, Gτ0[:, sidx], gτmI)
 
-    @. Gτ0 += dGτ0
+    return @. Gτ0 += dGτ0
 end
 
 """
@@ -395,14 +423,22 @@ end
 function update_G0τ!(
     G0τ::AbstractMatrix{T}, γ::Ta, 
     Gτ::AbstractMatrix{T},
-    sidx::Int64, ws::LDRWorkspace{T, E}
+    sidx::Int64, ws::LDRWorkspace{T, E};
+    direction::Int = 1
 ) where {T, Ta, E}
     dG0τ = ws.M
 
-    # compute (I - G)eᵢ * Gᵀeᵢ
-    @views kron!(dG0τ, γ, G0τ[:, sidx], Gτ[sidx, :])
+    direction == 1 && begin
+        # compute (I - G)eᵢ * Gᵀeᵢ
+        @views kron!(dG0τ, γ, G0τ[:, sidx], Gτ[sidx, :])
 
-    @. G0τ += dG0τ
+        return @. G0τ += dG0τ
+    end
+
+    # compute (I - G)eᵢ * Gᵀeᵢ
+    @views kron!(dG0τ, γ, Gτ[:, sidx], G0τ[sidx, :])
+
+    return @. G0τ += dG0τ
 end
 
 """

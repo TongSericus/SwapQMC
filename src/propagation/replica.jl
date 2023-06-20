@@ -7,7 +7,7 @@
 function update_cluster!(
     walker::W, replica::Replica{W, ComplexF64, Float64},
     system::Hubbard, qmc::QMC, cidx::Int, ridx::Int
-) where W
+) where {W<:GCWalker}
     # set alias
     k = qmc.K_interval[cidx]
     Bk = system.Bk
@@ -79,7 +79,7 @@ function sweep!(
     replica::Replica{W, ComplexF64, Float64},
     walker::W, ridx::Int;
     isJumpReplica::Bool=true
-) where W
+) where {W<:GCWalker}
     """
         sweep!(system, qmc, replica, walker, ridx)
 
