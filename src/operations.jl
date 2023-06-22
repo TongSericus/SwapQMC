@@ -283,7 +283,7 @@ function compute_Metropolis_ratio(
     system::System,
     replica::Replica{W, ComplexF64}, walker::W,
     α::Ta, sidx::Int, ridx::Int;
-    direction::Int = 1
+    direction::Int = 1, region::Char = 'L'
 ) where {W, Ta}
 
     # set alias
@@ -293,19 +293,9 @@ function compute_Metropolis_ratio(
     b = replica.b
     Gτ = walker.G[1][sidx, sidx]
 
-    # used in the GS; direction=2 -> back propagation
-    direction == 1 ? (
-            Bk = system.Bk;
-            Bk⁻¹ = system.Bk⁻¹;
-            G0τ = walker.G0τ[1];
-            Gτ0 = walker.Gτ0[1]
-        ) : 
-        (
-            Bk = system.Bk⁻¹; 
-            Bk⁻¹ = system.Bk;
-            G0τ = walker.Gτ0[1];
-            Gτ0 = walker.G0τ[1]
-        )
+    # direction=2 -> back propagation
+    direction == 1 ? (Bk = system.Bk; Bk⁻¹ = system.Bk⁻¹) : (Bk = system.Bk⁻¹; Bk⁻¹ = system.Bk)
+    region == 'L' ? (G0τ = walker.G0τ[1]; Gτ0 = walker.Gτ0[1]) : (G0τ = walker.Gτ0[1]; Gτ0 = walker.G0τ[1])
 
     # compute Γ = a * bᵀ
     if system.useFirstOrderTrotter  # asymmetric case
@@ -473,22 +463,64 @@ end
 """
 function wrap_Gs!(
     Gτ::AbstractMatrix{T}, Gτ0::AbstractMatrix{T}, G0τ::AbstractMatrix{T},
-    B::Tb, ws::LDRWorkspace{T, E}
+    B::Tb, ws::LDRWorkspace{T, E}; direction::Int = 1, region::Char = 'L'
 ) where {T, Tb, E}
-    # update G(τ)
-    mul!(ws.M, B, Gτ)
+    # compute B⁻¹
     B⁻¹ = ws.M′
     copyto!(B⁻¹, B)
     inv_lu!(B⁻¹, ws.lu_ws)
-    mul!(Gτ, ws.M, B⁻¹)
+    
+    direction == 1 && begin
+        # update G(τ)
+        mul!(ws.M, B, Gτ)
+        mul!(Gτ, ws.M, B⁻¹)
 
-    # update G(τ,0)
-    mul!(ws.M, B, Gτ0)
-    copyto!(Gτ0, ws.M)
+        if region == 'L'
+            # update G(τ,0)
+            mul!(ws.M, B, Gτ0)
+            copyto!(Gτ0, ws.M)
 
-    # update G(0,τ)
-    mul!(ws.M, G0τ, B⁻¹)
-    copyto!(G0τ, ws.M)
+            # update G(0,τ)
+            mul!(ws.M, G0τ, B⁻¹)
+            copyto!(G0τ, ws.M)
 
-    return nothing
+            return nothing
+
+        elseif region == 'R'
+            # update G(τ,0)
+            mul!(ws.M, Gτ0, B⁻¹)
+            copyto!(Gτ0, ws.M)
+
+            # update G(0,τ)
+            mul!(ws.M, B, G0τ)
+            copyto!(G0τ, ws.M)
+
+            return nothing
+        end
+    end
+
+    # update G(τ)
+    mul!(ws.M, B⁻¹, Gτ)
+    mul!(Gτ, ws.M, B)
+
+    if region == 'L'
+        # update G(τ,0)
+        mul!(ws.M, B⁻¹, Gτ0)
+        copyto!(Gτ0, ws.M)
+
+        # update G(0,τ)
+        mul!(ws.M, G0τ, B)
+        copyto!(G0τ, ws.M)
+
+        return nothing
+    elseif region == 'R'
+        # update G(τ,0)
+        mul!(ws.M, Gτ0, B)
+        copyto!(Gτ0, ws.M)
+
+        # update G(0,τ)
+        mul!(ws.M, B⁻¹, G0τ)
+        copyto!(G0τ, ws.M)
+    end
+    
 end

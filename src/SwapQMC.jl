@@ -19,9 +19,8 @@ module SwapQMC
            hopping_matrix_Hubbard_2d, hopping_matrix_ssh_2d
     include("./base/one_body_matrices.jl")
 
-    export HubbardGCWalker, HubbardGCSwapper,
-           Replica,
-           sweep!
+    export HubbardGCWalker, HubbardGCSwapper, Replica
+    export sweep!
     include("./walker.jl")
     include("./replica.jl")
     include("./operations.jl")
@@ -36,6 +35,7 @@ module SwapQMC
     include("./walker_gs.jl")
     include("./operations_gs.jl")
     include("./propagation/standard_gs.jl")
+    include("./propagation/replica_gs.jl")
 
     export TunableHubbard, TunableHubbardWalker,
            MuTuner, dynamical_tuning

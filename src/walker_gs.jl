@@ -30,6 +30,8 @@ struct HubbardWalker{T<:Number, wf<:AbstractMatrix, Fact<:Factorization{T}, C} <
     # imaginary-time-displaced Green's
     Gτ0::Vector{Matrix{T}}
     G0τ::Vector{Matrix{T}}
+    gτ0::Vector{Matrix{T}}
+    g0τ::Vector{Matrix{T}}
 
     ### Temporal data to avoid memory allocations ###
     # a transient factorization
@@ -63,23 +65,26 @@ function HubbardWalker(
     φ₀T = @. Matrix(transpose(φ₀))
 
     # initialize equal-time and time-displaced Green's functions
-    G   = [Matrix{T}(1.0I, Ns, Ns), Matrix{T}(1.0I, Ns, Ns)]
-    Gτ0 = [Matrix{T}(1.0I, Ns, Ns), Matrix{T}(1.0I, Ns, Ns)]
-    G0τ = [Matrix{T}(1.0I, Ns, Ns), Matrix{T}(1.0I, Ns, Ns)]
+    G   = [Matrix{T}(I, Ns, Ns) for _ in 1:2]
+    Gτ0 = [Matrix{T}(I, Ns, Ns) for _ in 1:2]
+    G0τ = [Matrix{T}(I, Ns, Ns) for _ in 1:2]
+    gτ0 = [Matrix{T}(I, Ns, Ns) for _ in 1:qmc.K]
+    g0τ = [Matrix{T}(I, Ns, Ns) for _ in 1:qmc.K]
 
     # build the initial propator with random configurations
     ws = ldr_workspace(G[1])
     θ = div(system.L, 2)
+    Θ = div(qmc.K, 2)
     @views Fr, Bcr, Fcr = build_propagator(
                             auxfield[:, 1:θ], system, qmc, ws,
                             isReverse=false,
                             K=div(qmc.K,2), 
-                            K_interval=qmc.K_interval[1:div(qmc.K,2)]
+                            K_interval=qmc.K_interval[1:Θ]
                         )
     @views Fl, Bcl, Fcl = build_propagator(
                             auxfield[:, θ+1:end], system, qmc, ws,
                             K=div(qmc.K,2),
-                            K_interval=qmc.K_interval[div(qmc.K,2)+1:end]
+                            K_interval=qmc.K_interval[Θ+1:end]
                         )
     # compute Green's function based on the propagator
     Ul = [Matrix{T}(1.0I, Np[1], Ns), Matrix{T}(1.0I, Np[2], Ns)]
@@ -111,7 +116,7 @@ function HubbardWalker(
     return HubbardWalker{T, eltype(φ₀), eltype(Fl), eltype(Bl.B)}(
         α, φ₀, φ₀T, 
         auxfield, Fl, Fr, ws, 
-        G, Ul, Ur, Gτ0, G0τ, 
+        G, Ul, Ur, Gτ0, G0τ, gτ0, g0τ,
         Fτ, Fcl, Fcr, Bl, Bc,
         tmp_r
     )

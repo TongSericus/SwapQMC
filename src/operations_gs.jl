@@ -50,3 +50,45 @@ function compute_G!(
 
     return G
 end
+
+function proceed_gτ0!(
+    gτ0::AbstractMatrix, Bτ::AbstractMatrix, Gτ::AbstractMatrix, ws::LDRWorkspace; 
+    direction::Int = 1
+)
+    direction == 1 && begin
+        mul!(gτ0, Gτ, Bτ)
+        
+        return nothing
+    end
+
+    # compute B⁻¹
+    Bτ⁻¹ = ws.M′
+    copyto!(Bτ⁻¹, Bτ)
+    inv_lu!(Bτ⁻¹, ws.lu_ws)
+
+    ImGτ = I - Gτ
+    mul!(gτ0, -ImGτ, Bτ⁻¹)
+
+    return nothing
+end
+
+function proceed_g0τ!(
+    g0τ::AbstractMatrix, Bτ::AbstractMatrix, Gτ::AbstractMatrix, ws::LDRWorkspace; 
+    direction::Int = 1
+)
+    direction == 1 && begin
+        # compute B⁻¹
+        Bτ⁻¹ = ws.M′
+        copyto!(Bτ⁻¹, Bτ)
+        inv_lu!(Bτ⁻¹, ws.lu_ws)
+
+        ImGτ = I - Gτ
+        mul!(g0τ, Bτ⁻¹, -ImGτ)
+
+        return nothing
+    end
+
+    mul!(g0τ, Bτ, Gτ)
+
+    return nothing
+end
