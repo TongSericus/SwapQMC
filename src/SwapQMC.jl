@@ -31,6 +31,7 @@ module SwapQMC
     # ground state
     export HubbardWalker
     export trial_wf_free
+    export sweep!_symmetric, jump_replica!
     include("./trial_wavefunctions.jl")
     include("./walker_gs.jl")
     include("./operations_gs.jl")

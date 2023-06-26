@@ -2,6 +2,17 @@
     Replica Monte Carlo sweep in the Z_{A, 2} space, ground state
 """
 
+function sweep!(system::Hubbard, qmc::QMC, replica::Replica, walker::HubbardWalker, ridx::Int)
+    Θ = div(qmc.K,2)
+
+    if system.useChargeHST
+        sweep!_symmetric(system, qmc, replica, walker, ridx, collect(Θ+1:2Θ))
+        sweep!_symmetric(system, qmc, replica, walker, ridx, collect(Θ:-1:1))
+
+        return nothing
+    end
+end
+
 ###################################################
 ##### Symmetric Sweep for Charge HS Transform #####
 ###################################################
@@ -178,8 +189,8 @@ function sweep!_symmetric(
             cidx == 2Θ ? (
                     copyto!(Fl, FτT); copyto!(Gτ, G₀); 
                     copyto!(Gτ0, Gτ);
-                    copyto!.(G0τ, Gτ);
-                    G0τ[diagind(G0τ[1])] .-= 1
+                    copyto!(G0τ, Gτ);
+                    G0τ[diagind(G0τ)] .-= 1
                 ) : 
                     mul!(Fcl[i], Fcl[i+1], Bc, ws)
         end
@@ -226,11 +237,11 @@ function sweep!_symmetric(
             end
         
         cidx == 1 ? (
-                copyto!(Fr, FτT); 
+                copyto!(Fr, FτT);
                 copyto!(Gτ, G₀);
                 copyto!(Gτ0, Gτ);
-                copyto!.(G0τ, Gτ);
-                G0τ[diagind(G0τ[1])] .-= 1
+                copyto!(G0τ, Gτ);
+                G0τ[diagind(G0τ)] .-= 1
             ) : 
                 mul!(Fcr[i], Bc, Fcr[i-1], ws)
     end

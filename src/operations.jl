@@ -30,7 +30,7 @@ function compute_Metropolis_ratio(
 ) where {Ta<:Number}
     d = α * (1 - G[sidx, sidx])
     # accept ratio
-    r = (1 + d)^2 / (α + 1)
+    r = isreal(α) ? (1 + d)^2 : (1 + d)^2 / (α + 1)
 
     return r, d+1
 end
@@ -292,11 +292,20 @@ function compute_Metropolis_ratio(
     a = replica.a
     b = replica.b
     Gτ = walker.G[1][sidx, sidx]
-    G0τ = walker.G0τ[1]
-    Gτ0 = walker.Gτ0[1]
 
     # direction=2 -> back propagation
-    direction == 1 ? (Bk = system.Bk; Bk⁻¹ = system.Bk⁻¹) : (Bk = system.Bk⁻¹; Bk⁻¹ = system.Bk)
+    direction == 1 ? (
+            Bk = system.Bk; 
+            Bk⁻¹ = system.Bk⁻¹;
+            G0τ = walker.G0τ[1];
+            Gτ0 = walker.Gτ0[1]
+        ) : 
+        (
+            Bk = system.Bk⁻¹; 
+            Bk⁻¹ = system.Bk;
+            G0τ = walker.Gτ0[1];
+            Gτ0 = walker.G0τ[1]
+        )
     
     # compute Γ = a * bᵀ
     if system.useFirstOrderTrotter  # asymmetric case
@@ -338,7 +347,7 @@ function compute_Metropolis_ratio(
 
     d = 1 + α * (1 - Gτ - Γ)
     # accept ratio
-    r = d^2 / (α+1)
+    r = isreal(α) ? d^2 : d^2 / (α + 1)
 
     γ = α / (d + α * Γ)
     ρ = α / d
