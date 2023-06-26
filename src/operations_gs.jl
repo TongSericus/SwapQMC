@@ -35,8 +35,8 @@ function compute_G!(
     # current LDR decomposition can't deal with non-square matrix
     φ₀ = walker.φ₀[spin]
     φ₀ᵀ= walker.φ₀T[spin]
-    Ul = walker.Ul[spin]
-    Ur = walker.Ur[spin]
+    Ul = walker.Ul
+    Ur = walker.Ur
 
     lmul!_svd(Ul, φ₀ᵀ, Bl)
     rmul!_svd(Ur, Br, φ₀)
@@ -61,13 +61,7 @@ function proceed_gτ0!(
         return nothing
     end
 
-    # compute B⁻¹
-    Bτ⁻¹ = ws.M′
-    copyto!(Bτ⁻¹, Bτ)
-    inv_lu!(Bτ⁻¹, ws.lu_ws)
-
-    ImGτ = I - Gτ
-    mul!(gτ0, -ImGτ, Bτ⁻¹)
+    mul!(gτ0, Bτ, Gτ)
 
     return nothing
 end
@@ -76,19 +70,28 @@ function proceed_g0τ!(
     g0τ::AbstractMatrix, Bτ::AbstractMatrix, Gτ::AbstractMatrix, ws::LDRWorkspace; 
     direction::Int = 1
 )
+    # compute B⁻¹
+    Bτ⁻¹ = ws.M′
+    copyto!(Bτ⁻¹, Bτ)
+    inv_lu!(Bτ⁻¹, ws.lu_ws)
+
     direction == 1 && begin
         # compute B⁻¹
         Bτ⁻¹ = ws.M′
         copyto!(Bτ⁻¹, Bτ)
         inv_lu!(Bτ⁻¹, ws.lu_ws)
-
-        ImGτ = I - Gτ
-        mul!(g0τ, Bτ⁻¹, -ImGτ)
+        
+        mul!(g0τ, Bτ⁻¹, Gτ - I)
 
         return nothing
     end
 
-    mul!(g0τ, Bτ, Gτ)
+    # compute B⁻¹
+    Bτ⁻¹ = ws.M′
+    copyto!(Bτ⁻¹, Bτ)
+    inv_lu!(Bτ⁻¹, ws.lu_ws)
+
+    mul!(g0τ, Gτ - I, Bτ⁻¹)
 
     return nothing
 end

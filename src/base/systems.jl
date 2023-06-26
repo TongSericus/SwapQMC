@@ -36,6 +36,7 @@ struct GenericHubbard{T, Tk} <: Hubbard
         Ns::Tuple{Int64, Int64, Int64}, N::Tuple{Int64, Int64},
         T::AbstractMatrix, U::Float64,
         μ::Float64, β::Float64, L::Int64;
+        sys_type::DataType = ComplexF64,
         useChargeHST::Bool = false,
         useFirstOrderTrotter::Bool = false
     )
@@ -48,14 +49,12 @@ struct GenericHubbard{T, Tk} <: Hubbard
         # complex HS transform is more stable for entanglement measures
         # see PRE 94, 063306 (2016) for explanations
         if useChargeHST
-            γ = acosh(exp(-Δτ * U / 2) + 0im)
+            sys_type == ComplexF64 ? (γ = acosh(exp(-Δτ * U / 2) + 0im)) : (γ = acosh(exp(-Δτ * U / 2)))
             # use symmetric Hubbard potential
             auxfield = [exp(γ), exp(-γ)]
-            sys_type = ComplexF64
         else
             γ = atanh(sqrt(tanh(Δτ * U / 4)))
             auxfield = [exp(2 * γ - Δτ * U / 2), exp(-2 * γ - Δτ * U / 2)]
-            sys_type = Float64
         end
 
         # add chemical potential

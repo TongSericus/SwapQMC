@@ -281,10 +281,10 @@ end
 """
 function compute_Metropolis_ratio(
     system::System,
-    replica::Replica{W, ComplexF64}, walker::W,
+    replica::Replica{W, T}, walker::W,
     α::Ta, sidx::Int, ridx::Int;
-    direction::Int = 1, region::Char = 'L'
-) where {W, Ta}
+    direction::Int = 1
+) where {W, T, Ta}
 
     # set alias
     Aidx = replica.Aidx
@@ -292,11 +292,12 @@ function compute_Metropolis_ratio(
     a = replica.a
     b = replica.b
     Gτ = walker.G[1][sidx, sidx]
+    G0τ = walker.G0τ[1]
+    Gτ0 = walker.Gτ0[1]
 
     # direction=2 -> back propagation
     direction == 1 ? (Bk = system.Bk; Bk⁻¹ = system.Bk⁻¹) : (Bk = system.Bk⁻¹; Bk⁻¹ = system.Bk)
-    region == 'L' ? (G0τ = walker.G0τ[1]; Gτ0 = walker.Gτ0[1]) : (G0τ = walker.Gτ0[1]; Gτ0 = walker.G0τ[1])
-
+    
     # compute Γ = a * bᵀ
     if system.useFirstOrderTrotter  # asymmetric case
         ridx == 1 ? 
@@ -333,14 +334,14 @@ function compute_Metropolis_ratio(
                 @views transpose_mul!(b, Gτ0[sidx, :], Bk[:, Aidx])
             end
     end
-    Γ::ComplexF64 = transpose(a) * b
+    Γ = transpose(a) * b
 
-    d::ComplexF64 = 1 + α * (1 - Gτ - Γ)
+    d = 1 + α * (1 - Gτ - Γ)
     # accept ratio
-    r::ComplexF64 = d^2 / (α+1)
+    r = d^2 / (α+1)
 
-    γ::ComplexF64 = α / (d + α * Γ)
-    ρ::ComplexF64 = α / d
+    γ = α / (d + α * Γ)
+    ρ = α / d
 
     return r, γ, ρ
 end
@@ -438,7 +439,7 @@ end
     GA⁻¹ = (GA₁ * GA₂ + (I-GA₁) * (I-GA₂))⁻¹
     when the sidx-th spin is flipped
 """
-function update_invGA!(replica::Replica{W, ComplexF64}, ρ::T) where {W, T}
+function update_invGA!(replica::Replica{W, T}, ρ::Tp) where {W, T, Tp}
     GA⁻¹ = replica.GA⁻¹
     a = replica.a
     b = replica.b
@@ -463,7 +464,7 @@ end
 """
 function wrap_Gs!(
     Gτ::AbstractMatrix{T}, Gτ0::AbstractMatrix{T}, G0τ::AbstractMatrix{T},
-    B::Tb, ws::LDRWorkspace{T, E}; direction::Int = 1, region::Char = 'L'
+    B::Tb, ws::LDRWorkspace{T, E}; direction::Int = 1
 ) where {T, Tb, E}
     # compute B⁻¹
     B⁻¹ = ws.M′
@@ -475,52 +476,28 @@ function wrap_Gs!(
         mul!(ws.M, B, Gτ)
         mul!(Gτ, ws.M, B⁻¹)
 
-        if region == 'L'
-            # update G(τ,0)
-            mul!(ws.M, B, Gτ0)
-            copyto!(Gτ0, ws.M)
+        # update G(τ,0)
+        mul!(ws.M, B, Gτ0)
+        copyto!(Gτ0, ws.M)
 
-            # update G(0,τ)
-            mul!(ws.M, G0τ, B⁻¹)
-            copyto!(G0τ, ws.M)
+        # update G(0,τ)
+        mul!(ws.M, G0τ, B⁻¹)
+        copyto!(G0τ, ws.M)
 
-            return nothing
-
-        elseif region == 'R'
-            # update G(τ,0)
-            mul!(ws.M, Gτ0, B⁻¹)
-            copyto!(Gτ0, ws.M)
-
-            # update G(0,τ)
-            mul!(ws.M, B, G0τ)
-            copyto!(G0τ, ws.M)
-
-            return nothing
-        end
+        return nothing
     end
 
     # update G(τ)
     mul!(ws.M, B⁻¹, Gτ)
     mul!(Gτ, ws.M, B)
 
-    if region == 'L'
-        # update G(τ,0)
-        mul!(ws.M, B⁻¹, Gτ0)
-        copyto!(Gτ0, ws.M)
+    # update G(τ,0)
+    mul!(ws.M, Gτ0, B)
+    copyto!(Gτ0, ws.M)
 
-        # update G(0,τ)
-        mul!(ws.M, G0τ, B)
-        copyto!(G0τ, ws.M)
-
-        return nothing
-    elseif region == 'R'
-        # update G(τ,0)
-        mul!(ws.M, Gτ0, B)
-        copyto!(Gτ0, ws.M)
-
-        # update G(0,τ)
-        mul!(ws.M, B⁻¹, G0τ)
-        copyto!(G0τ, ws.M)
-    end
+    # update G(0,τ)
+    mul!(ws.M, B⁻¹, G0τ)
+    copyto!(G0τ, ws.M)
     
+    return nothing
 end
