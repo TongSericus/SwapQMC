@@ -1,6 +1,6 @@
 module SwapQMC
     using Reexport: @reexport
-    @reexport using LinearAlgebra, Statistics, Random, FFTW
+    @reexport using LinearAlgebra, Statistics, Random
 
     # import packages from https://github.com/cohensbw
     @reexport using StableLinearAlgebra, LatticeUtilities, Checkerboard
@@ -37,6 +37,11 @@ module SwapQMC
     include("./operations_gs.jl")
     include("./propagation/standard_gs.jl")
     include("./propagation/replica_gs.jl")
+
+    # subsystem sampling
+    export HubbardSubsysWalker
+    include("operations_subsys.jl")
+    include("./propagation/standard_subsys.jl")
 
     export TunableHubbard, TunableHubbardWalker,
            MuTuner, dynamical_tuning

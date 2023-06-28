@@ -147,9 +147,18 @@ struct HubbardSubsysWalker{T<:Number, wf<:AbstractMatrix, Fact<:Factorization{T}
     wsA::LDRWorkspace{T,E}
     # Green's function and the temporal data to compute G
     G::Vector{Matrix{T}}
-    Ul::Vector{Matrix{T}}
-    Ur::Vector{Matrix{T}}
+    Ul::Matrix{T}
+    Ur::Matrix{T}
     ImGA⁻¹::Vector{Matrix{T}}
+
+    # Green's function at θ
+    G₀::Vector{Matrix{T}}
+
+    # imaginary-time-displaced Green's
+    Gτ0::Vector{Matrix{T}}
+    G0τ::Vector{Matrix{T}}
+    gτ0::Vector{Matrix{T}}
+    g0τ::Vector{Matrix{T}}
 
     # two vectors used in computing the ratio and updating the Grover inverse
     a::Vector{T}
@@ -171,18 +180,14 @@ struct HubbardSubsysWalker{T<:Number, wf<:AbstractMatrix, Fact<:Factorization{T}
     tmp_r::Vector{T}
 end
 
-"""
-    HubbardWalker(system, qmc, φ₀)
-
-    Initialize a Hubbard-type ground state walker given the model parameters
-"""
 function HubbardSubsysWalker(
     extsys::ExtendedSystem, qmc::QMC, φ₀::Vector{wf};
-    auxfield::Matrix{Int} = rand([-1, 1], system.V, system.L),
-    T::DataType = eltype(system.auxfield)
+    auxfield::Matrix{Int} = rand([-1, 1], extsys.system.V, extsys.system.L),
+    T::DataType = eltype(extsys.system.auxfield)
 ) where {wf<:AbstractMatrix}
     
     system = extsys.system
+    Aidx = extsys.Aidx
 
     Ns = system.V
     Np = system.N
@@ -192,6 +197,11 @@ function HubbardSubsysWalker(
 
     # initialize equal-time and time-displaced Green's functions
     G   = [Matrix{T}(I, Ns, Ns) for _ in 1:2]
+    G₀  = [Matrix{T}(I, Ns, Ns) for _ in 1:2]
+    Gτ0 = [Matrix{T}(I, Ns, Ns) for _ in 1:2]
+    G0τ = [Matrix{T}(I, Ns, Ns) for _ in 1:2]
+    gτ0 = [Matrix{T}(I, Ns, Ns) for _ in 1:qmc.K]
+    g0τ = [Matrix{T}(I, Ns, Ns) for _ in 1:qmc.K] 
     ImGA⁻¹ = [Matrix{T}(I, LA, LA) for _ in 1:2]
 
     # build the initial propator with random configurations
@@ -210,16 +220,23 @@ function HubbardSubsysWalker(
                             K_interval=qmc.K_interval[Θ+1:end]
                         )
     # compute Green's function based on the propagator
-    Ul = [Matrix{T}(1.0I, Np[1], Ns), Matrix{T}(1.0I, Np[2], Ns)]
-    Ur = [Matrix{T}(1.0I, Ns, Np[1]), Matrix{T}(1.0I, Ns, Np[2])]
-    compute_G!(G[1], φ₀[1], φ₀T[1], Ul[1], Ur[1], Fl[1], Fr[1])
-    compute_G!(G[2], φ₀[2], φ₀T[2], Ul[2], Ur[2], Fl[2], Fr[2])
+    Ul = Matrix{T}(1.0I, Np[1], Ns)
+    Ur = Matrix{T}(1.0I, Ns, Np[1])
+    compute_G!(G[1], φ₀[1], φ₀T[1], Ul, Ur, Fl[1], Fr[1])
+    compute_G!(G[2], φ₀[2], φ₀T[2], Ul, Ur, Fl[2], Fr[2])
+    # Green's function at the starting time
+    copyto!(G₀[1], G[1])
+    copyto!(G₀[2], G[2])
     # G(τ=0, 0) = G(0)
     copyto!.(Gτ0, G)
     # G(0, τ=0) = G(0) - I
     copyto!.(G0τ, G)
     G0τ[1][diagind(G0τ[1])] .-= 1
     G0τ[2][diagind(G0τ[2])] .-= 1
+    # compute (I - GA)⁻¹
+    wsA = ldr_workspace(ImGA⁻¹[1])
+    @views compute_invImGA!(ImGA⁻¹[1], G[1][Aidx, Aidx], wsA)
+    @views compute_invImGA!(ImGA⁻¹[2], G[2][Aidx, Aidx], wsA)
 
     if system.useChargeHST
         α = system.auxfield[1] / system.auxfield[2]
@@ -230,16 +247,21 @@ function HubbardSubsysWalker(
     end
 
     # initialize temporal data for storage
+    a = zeros(T, LA)
+    b = zeros(T, LA)
+    t = zeros(T, LA)
     Fτ = ldrs(G[1], 3)
     copyto!.(Fτ[2:3], Fr)
     Bl = Cluster(Ns, 2 * qmc.stab_interval, T = T)
     Bc = [copy(Bl.B[1]), copy(Bl.B[1])]
     tmp_r = Vector{T}()
 
-    return HubbardWalker{T, eltype(φ₀), eltype(Fl), eltype(ws.v), eltype(Bl.B)}(
-        α, φ₀, φ₀T, 
-        auxfield, Fl, Fr, ws, 
-        G, Ul, Ur, Gτ0, G0τ, gτ0, g0τ,
+    return HubbardSubsysWalker{T, eltype(φ₀), eltype(Fl), eltype(ws.v), eltype(Bl.B)}(
+        Aidx, α, φ₀, φ₀T, 
+        auxfield, Fl, Fr, ws, wsA,
+        G, Ul, Ur, ImGA⁻¹, G₀,
+        Gτ0, G0τ, gτ0, g0τ,
+        a, b, t,
         Fτ, Fcl, Fcr, Bl, Bc,
         tmp_r
     )

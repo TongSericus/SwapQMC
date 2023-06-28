@@ -403,3 +403,81 @@ end
     r = abs((det(B_new) / det(B_old))^2) * exp(2*replica2.logdetGA[] - 2*replica3.logdetGA[])
     @test r ≈ walker2.tmp_r[idx]
 end
+
+# subsystem sampling test
+@testset "SwapQMC_Subsys" begin
+    ##### Attractive 2D Hubbard Model #####
+    Lx, Ly = 4, 4
+    T = hopping_matrix_Hubbard_2D(Lx, Ly, 1.0)
+
+    system = GenericHubbard(
+        # (Nx, Ny), (N_up, N_dn)
+        (Lx, Ly, 1), (7, 7),
+        # t, U
+        T, -0.5,
+        # μ
+        0.0,
+        # β, L
+        1.0, 20,
+        # data type of the system
+        sys_type = Float64,
+        # if use charge decomposition
+        useChargeHST=true,
+        # if use first-order Trotteriaztion
+        useFirstOrderTrotter=false
+    )
+
+    qmc = QMC(
+        system,
+        # number of warm-ups, samples and measurement interval
+        500, 2000, 10,
+        # stablization and update interval
+        5, 5,
+        # debugging flag
+        saveRatio=true
+    )
+
+    Θ = div(qmc.K,2)
+    θ = div(system.L,2)
+
+    φ₀_up = trial_wf_free(system, 1, T)
+    φ₀ = [φ₀_up, copy(φ₀_up)]
+
+    extsys = ExtendedSystem(system, collect(1:4), subsysOrdering=false)
+    walker = HubbardSubsysWalker(extsys, qmc, φ₀)
+
+    ### test the forward direction ###
+    auxfield = copy(walker.auxfield)
+    sweep!_symmetric(system, qmc, walker, collect(Θ+1:2Θ))
+
+    # pick a random point in time [θ:2θ]
+    idx_t = rand(θ+1:2θ)
+    idx_x = rand(1:system.V)
+    idx = (idx_t-θ-1)*system.V + idx_x
+    @. auxfield[:, θ+1:idx_t-1] = walker.auxfield[:, θ+1:idx_t-1]
+    @. auxfield[1:idx_x-1, idx_t] = walker.auxfield[1:idx_x-1, idx_t]
+    # then create new test walkers
+    walker′ = HubbardSubsysWalker(extsys, qmc, φ₀, auxfield=auxfield)
+    auxfield[idx_x, idx_t] *= -1
+    walker″ = HubbardSubsysWalker(extsys, qmc, φ₀, auxfield=auxfield)
+
+    r = det(walker″.ImGA⁻¹[1]) / det(walker′.ImGA⁻¹[1])
+    @test r^2 ≈ walker.tmp_r[idx]
+
+    ### test the backward direction ###
+    auxfield = copy(walker.auxfield)
+    sweep!_symmetric(system, qmc, walker, collect(Θ:-1:1))
+    # pick a random point in time [θ:2θ]
+    idx_t = rand(1:θ)
+    idx_x = rand(1:system.V)
+    idx = (θ - idx_t)*system.V + idx_x + div(system.V*system.L,2)
+    @. auxfield[:, idx_t+1:θ] = walker.auxfield[:, idx_t+1:θ]
+    @. auxfield[1:idx_x-1, idx_t] = walker.auxfield[1:idx_x-1, idx_t]
+    # then create new test walkers
+    walker′ = HubbardSubsysWalker(extsys, qmc, φ₀, auxfield=auxfield)
+    auxfield[idx_x, idx_t] *= -1
+    walker″ = HubbardSubsysWalker(extsys, qmc, φ₀, auxfield=auxfield)
+
+    r = det(walker″.ImGA⁻¹[1]) / det(walker′.ImGA⁻¹[1])
+    @test r^2 ≈ walker.tmp_r[idx]
+end

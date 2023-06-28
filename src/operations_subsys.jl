@@ -1,51 +1,60 @@
+"""
+    Operations for sampling in the subsystem A
+    
+    Walkers are updated by the weight det(I - Gₐ(θ))^-1
+"""
+
 function compute_Metropolis_ratio(
     system::System, walker::HubbardSubsysWalker,
-    spin::Int, α::Ta, sidx::Int;
-    direction::Int = 1
-) where {W, Ta}
+    α::Ta, sidx::Int; direction::Int = 1
+) where Ta
 
     # set alias
     Aidx = walker.Aidx
-    ImGA⁻¹ = walker.ImGA⁻¹
+    G = walker.G[1]
+    ImGA⁻¹ = walker.ImGA⁻¹[1]
     a = walker.a
     b = walker.b
     t = walker.t
 
-    # compute I - G
-    ImG = walker.ws.M
-    G = walker.G[spin]
-    @inbounds for i in eachindex(G)
-        ImG[i] = -G[i]
-    end
-    ImG[diagind(ImG)] .+= 1
-
     # direction=2 -> back propagation
-    direction == 1 ? (Bk = system.Bk; Bk⁻¹ = system.Bk⁻¹) : (Bk = system.Bk⁻¹; Bk⁻¹ = system.Bk)
+    direction == 1 ? (
+            Bk = system.Bk; 
+            Bk⁻¹ = system.Bk⁻¹;
+            G0τ = walker.G0τ[1];
+            Gτ0 = walker.Gτ0[1]
+        ) : 
+        (
+            Bk = system.Bk⁻¹; 
+            Bk⁻¹ = system.Bk;
+            G0τ = walker.Gτ0[1];
+            Gτ0 = walker.G0τ[1]
+        )
 
     # compute Γ = a * bᵀ
     if system.useFirstOrderTrotter  # asymmetric case
-        @views mul!(a, ImGA⁻¹, ImG[Aidx, sidx])
-        @views copyto!(b, G[sidx, Aidx])
+        @views mul!(a, ImGA⁻¹, G0τ[Aidx, sidx])
+        @views copyto!(b, Gτ0[sidx, Aidx])
         
     else                            # symmetric case
-        @views mul!(t, ImGA⁻¹, Bk⁻¹[Aidx, :])
-        @views mul!(a, t, ImG[:, sidx])
+        @views mul!(t, Bk⁻¹[Aidx, :], G0τ[:, sidx])
+        @views mul!(a, ImGA⁻¹, t)
 
-        @views transpose_mul!(b, G[sidx, :], Bk[:, Aidx])
+        @views transpose_mul!(b, Gτ0[sidx, :], Bk[:, Aidx])
     end
 
     d = α * (1 - G[sidx, sidx])
     γ = α / (1 + d)
 
-    ρ = γ / (1 + γ*dot(a,b))
+    ρ = γ / (1 - γ*dot(a,b))
     # accept ratio
-    r = 1 / (1 + γ*dot(a,b))^2
+    r = 1 / (1 - γ*dot(a,b))^2
 
     return r, γ, ρ
 end
 
 function update_invImGA!(walker::HubbardSubsysWalker, ρ::T) where T
-    ImGA⁻¹ = walker.ImGA⁻¹
+    ImGA⁻¹ = walker.ImGA⁻¹[1]
     a = walker.a
     b = walker.b
     bᵀ = walker.t
@@ -54,7 +63,7 @@ function update_invImGA!(walker::HubbardSubsysWalker, ρ::T) where T
     transpose_mul!(bᵀ, b, ImGA⁻¹)
 
     kron!(dImGA⁻¹, ρ, a, bᵀ)
-    @. ImGA⁻¹ -= dImGA⁻¹
+    @. ImGA⁻¹ += dImGA⁻¹
 end
 
 """
@@ -66,7 +75,7 @@ function compute_invImGA!(ImGA⁻¹::AbstractMatrix, GA::AbstractMatrix, wsA::LD
     
     # compute (I - GA) in-place
     ImGA = ImGA⁻¹
-    @inbounds for i in eachindex(GA₁)
+    @inbounds for i in eachindex(GA)
         ImGA[i] = -GA[i]
     end
     ImGA[diagind(ImGA)] .+= 1
