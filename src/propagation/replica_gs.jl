@@ -2,13 +2,59 @@
     Replica Monte Carlo sweep in the Z_{A, 2} space, ground state
 """
 
-function sweep!(system::Hubbard, qmc::QMC, replica::Replica, walker::HubbardWalker, ridx::Int)
+"""
+    sweep!(system, qmc, replica)
+
+    Sweep a replica (two copies of walker) through the imaginary time, with the workflow
+    1) update walker1 from θ to 2θ
+    1) update walker2 from θ to 2θ
+    1) update walker1 from θ to 0
+    1) update walker2 from θ to 0
+"""
+function sweep!(system::Hubbard, qmc::QMC, replica::Replica)
+    Θ = div(qmc.K,2)
+
+    walker1 = replica.walker1
+    walker2 = replica.walker2
+
+    if system.useChargeHST
+        
+        sweep!_symmetric(system, qmc, replica, walker1, 1, collect(Θ+1:2Θ))
+        jump_replica!(replica, 1)
+
+        sweep!_symmetric(system, qmc, replica, walker2, 2, collect(Θ+1:2Θ))
+        jump_replica!(replica, 2)
+
+        sweep!_symmetric(system, qmc, replica, walker1, 1, collect(Θ:-1:1))
+        jump_replica!(replica, 1)
+
+        sweep!_symmetric(system, qmc, replica, walker2, 2, collect(Θ:-1:1))
+        jump_replica!(replica, 2)
+
+        return nothing
+    end
+end
+
+"""
+    sweep!(system, qmc, replica, walker, ridx, loop_number=1, jumpReplica=false)
+
+    Sweep a certain walker of two copies (indexed by ridx) through the imaginary time in loop_number (by default 1) 
+    times from θ to 2θ and from θ to 0
+"""
+function sweep!(
+    system::Hubbard, qmc::QMC, 
+    replica::Replica, walker::HubbardWalker, ridx::Int;
+    loop_number::Int = 1, jumpReplica::Bool = false
+)
     Θ = div(qmc.K,2)
 
     if system.useChargeHST
-        sweep!_symmetric(system, qmc, replica, walker, ridx, collect(Θ+1:2Θ))
-        sweep!_symmetric(system, qmc, replica, walker, ridx, collect(Θ:-1:1))
+        for i in 1 : loop_number
+            sweep!_symmetric(system, qmc, replica, walker, ridx, collect(Θ+1:2Θ))
+            sweep!_symmetric(system, qmc, replica, walker, ridx, collect(Θ:-1:1))
+        end
 
+        jumpReplica && jump_replica!(replica,ridx)
         return nothing
     end
 end
@@ -84,7 +130,6 @@ function update_cluster!_symmetric(
     Bl = walker.Bl.B
     Bc = walker.Bc[1]
 
-    # propagate from τ to τ+k
     for i in slice
         l = (cidx - 1) * qmc.stab_interval + i
         @views σ = walker.auxfield[:, l]

@@ -2,14 +2,16 @@
     Projective Monte Carlo Propagation in the regular Z space
 """
 
-function sweep!(system::Hubbard, qmc::QMC, walker::HubbardWalker)
+function sweep!(system::Hubbard, qmc::QMC, walker::HubbardWalker; loop_number::Int = 1)
     Θ = div(qmc.K,2)
 
     if system.useChargeHST
-        sweep!_symmetric(system, qmc, walker, collect(Θ+1:2Θ))
-        sweep!_symmetric(system, qmc, walker, collect(2Θ:-1:Θ+1))
-        sweep!_symmetric(system, qmc, walker, collect(Θ:-1:1))
-        sweep!_symmetric(system, qmc, walker, collect(1:Θ))
+        for i in 1 : loop_number
+            sweep!_symmetric(system, qmc, walker, collect(Θ+1:2Θ))
+            sweep!_symmetric(system, qmc, walker, collect(2Θ:-1:Θ+1))
+            sweep!_symmetric(system, qmc, walker, collect(Θ:-1:1))
+            sweep!_symmetric(system, qmc, walker, collect(1:Θ))
+        end
 
         return nothing
     end
