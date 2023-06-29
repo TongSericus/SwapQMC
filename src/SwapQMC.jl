@@ -7,7 +7,8 @@ module SwapQMC
 
     import StableLinearAlgebra as Slinalg
     import StableLinearAlgebra: mul!, lmul!, rmul!, rdiv!
-
+    
+    # system and simulation related quantities, linalg operations
     export System, ExtendedSystem, QMC
     export Hubbard, GenericHubbard
     include("./base/systems.jl")
@@ -18,31 +19,36 @@ module SwapQMC
     export hopping_matrix_Hubbard_1d, hopping_matrix_ssh_1d, 
            hopping_matrix_Hubbard_2d, hopping_matrix_ssh_2d
     include("./base/one_body_matrices.jl")
-
+    
+    # random walker and replica at finite and zero temperature
     export HubbardGCWalker, HubbardGCSwapper, Replica
-    export sweep!
+    export trial_wf_free, HubbardWalker
+    export HubbardSubsysWalker
     include("./walker.jl")
+    include("./trial_wavefunctions.jl")
+    include("./walker_gs.jl")
     include("./replica.jl")
+
+    # local measurements
+    export EtgSampler, measure!
+    include("./base/sampler.jl")
+
+    # MC operations
+    export sweep!_symmetric, jump_replica!
     include("./operations.jl")
+    include("./operations_gs.jl")
+    include("operations_subsys.jl")
+    
+    # MC propagations
+    export sweep!
     include("./propagation/standard.jl")
     include("./propagation/swap.jl")
     include("./propagation/replica.jl")
-
-    # ground state
-    export HubbardWalker
-    export trial_wf_free
     export sweep!_symmetric, jump_replica!
-    include("./trial_wavefunctions.jl")
-    include("./walker_gs.jl")
-    include("./operations_gs.jl")
     include("./propagation/standard_gs.jl")
     include("./propagation/replica_gs.jl")
-
-    # subsystem sampling
-    export HubbardSubsysWalker
-    include("operations_subsys.jl")
     include("./propagation/standard_subsys.jl")
-
+    
     export TunableHubbard, TunableHubbardWalker,
            MuTuner, dynamical_tuning
     include("./dynamical_tuning/base.jl")

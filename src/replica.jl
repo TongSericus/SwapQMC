@@ -60,7 +60,7 @@ struct Replica{W, T, E}
     end
 end
 
-function update!(replica::Replica; identicalSpin::Bool = true)
+function update!(replica::Replica)
     """
         Update the value of det(GA⁻¹)
     """
