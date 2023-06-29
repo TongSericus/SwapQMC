@@ -56,9 +56,6 @@ function measure_EE!(
     walker₁::HubbardGCWalker, walker₂::HubbardGCWalker,
     swapper::HubbardGCSwapper
 )
-    """
-        Measure the transition probability and particle number distribution in Z_{A, 2} space
-    """
     LA = extsys.LA
 
     HA₁ = etgdata.HA₁
@@ -114,8 +111,8 @@ end
 function measure_EE!(
     etgm::EtgMeasurement,
     etgdata::EtgData, extsys::ExtendedSystem, 
-    replica::Replica{W, ComplexF64, Float64}
-) where W
+    replica::Replica
+)
     LA = extsys.LA
 
     HA₁ = etgdata.HA₁
@@ -158,9 +155,6 @@ function measure_EE(
     swapper::HubbardGCSwapper;
     isIdenticalSpin::Bool = false
 )
-    """
-        Measure the transition probability in Z² space
-    """
     fill_swapper!(swapper, walker₁, walker₂, identicalSpin=isIdenticalSpin)
     p = sum(swapper.weight) - sum(walker₁.weight) - sum(walker₂.weight)
 
@@ -199,23 +193,29 @@ function measure_Pn!(
     return nothing
 end
 
+"""
+    Grover_estimator(GA₁, ImGA₁, GA₂, ImGA₂, ws)
+
+    Stable calculation of the Grover's estimator det[GA₁GA₂ + (I- GA₁)(I - GA₂)]
+"""
 function Grover_estimator(
     GA₁::LDR{T, E}, ImGA₁::LDR{T, E}, 
     GA₂::LDR{T, E}, ImGA₂::LDR{T, E}, 
     ws::LDRWorkspace{T, E}; 
     U::LDR{T, E} = similar(GA₁), V::LDR{T, E} = similar(ImGA₁)
 ) where {T, E}
-    """
-        Grover_estimator(GA₁, ImGA₁, GA₂, ImGA₂, ws)
-
-        Stable calculation of the Grover's estimator det[GA₁GA₂ + (I- GA₁)(I - GA₂)]
-    """
     mul!(U, GA₁, GA₂, ws)
     mul!(V, ImGA₁, ImGA₂, ws)
     det_UpV(U, V, ws)
 end
 
 ### Symmetry-resolved Calculations ###
+"""
+    poissbino(ϵ::Vector)
+
+    A regularized version of the recursive calculation for the Poisson binomial
+    distribution give the unnormalized spectrum ϵ
+"""
 function poissbino(
     ϵ::AbstractVector{T};
     Ns::Int64 = length(ϵ),
@@ -223,12 +223,6 @@ function poissbino(
     ν2::AbstractVector{T} = 1 ./ (1 .+ ϵ),
     P::AbstractMatrix{Tp} = zeros(eltype(ϵ), Ns + 1, Ns)
 ) where {T<:Number, Tp<:Number}
-    """
-        poissbino(ϵ::Vector)
-
-        A regularized version of the recursive calculation for the Poisson binomial
-    distribution give the unnormalized spectrum ϵ
-    """
     # Initialization
     fill!(P, zero(eltype(P)))
     P[1, 1] = ν2[1]
@@ -245,6 +239,12 @@ function poissbino(
     return P
 end
 
+"""
+    Pn2_estimator(GA₁, ImGA₁, GA₂, ImGA₂, ws)
+
+    Stable calculation of P_{n, 2} := exp(-S_{2, n}) / exp(-S_{2}) through recursion,
+    via the eigvalues of the entanglement Hamiltonian Hₐ = Gₐ₁(I - Gₐ₁)⁻¹Gₐ₂(I - Gₐ₂)⁻¹
+"""
 function Pn2_estimator(
     GA₁::LDR{T, E}, ImGA₁::LDR{T, E}, 
     GA₂::LDR{T, E}, ImGA₂::LDR{T, E}, 
@@ -253,12 +253,6 @@ function Pn2_estimator(
     LA = length(GA₁.d),
     P::AbstractMatrix{ComplexF64} = zeros(ComplexF64, LA + 1, LA)
 ) where {T, E}
-    """
-        Pn2_estimator(GA₁, ImGA₁, GA₂, ImGA₂, ws)
-
-        Stable calculation of P_{n, 2} := exp(-S_{2, n}) / exp(-S_{2}) through recursion,
-    via the eigvalues of the entanglement Hamiltonian Hₐ = Gₐ₁(I - Gₐ₁)⁻¹Gₐ₂(I - Gₐ₂)⁻¹
-    """
     copyto!(HA₁, GA₁)
     copyto!(HA₂, GA₂)
 
@@ -275,6 +269,32 @@ function Pn2_estimator(
     return P
 end
 
+function Pn2_estimator(replica::Replica; 
+    LA::Int = length(replica.Aidx), 
+    Pn2::AbstractMatrix{ComplexF64} = zeros(ComplexF64, LA + 1, LA)
+)
+    Aidx = replica.Aidx
+    G₁ = replica.G₀1
+    G₂ = replica.G₀2
+    ws = replica.ws
+
+    U, d, V = compute_etgHam(G₁, G₂, Aidx, ws)
+    lmul!(Diagonal(d), V)
+    H = ws.M
+    mul!(H, V, U)
+    ϵ = eigvals(H)
+    ϵ = sort(1 ./ ϵ, by=abs)
+    poissbino(ϵ, P=Pn2)
+
+    return Pn2
+end
+
+"""
+    Pn_estimator(GA, ImGA, ws)
+
+    Stable calculation of the particle number distribution P_{n} through recursion,
+    via the eigvalues of the entanglement Hamiltonian Hₐ = Gₐ(I - Gₐ)⁻¹
+"""
 function Pn_estimator(
     GA::LDR{T, E}, ImGA::LDR{T, E}, 
     ws::LDRWorkspace{T, E}; 
@@ -282,12 +302,6 @@ function Pn_estimator(
     LA = length(GA.d),
     P::AbstractMatrix{ComplexF64} = zeros(ComplexF64, LA + 1, LA)
 ) where {T, E}
-    """
-        Pn_estimator(GA, ImGA, ws)
-
-        Stable calculation of the particle number distribution P_{n} through recursion,
-    via the eigvalues of the entanglement Hamiltonian Hₐ = Gₐ(I - Gₐ)⁻¹
-    """
     copyto!(HA, GA)
 
     # compute Hₐ = Gₐ(I - Gₐ)⁻¹
@@ -298,4 +312,31 @@ function Pn_estimator(
     poissbino(ϵ, P=P)
 
     return P
+end
+
+function Pn_estimator(
+    G::AbstractMatrix{T}, Aidx::Vector{Int}, ws::LDRWorkspace{T,E};
+    LA = length(Aidx),
+    Pn::AbstractMatrix{ComplexF64} = zeros(ComplexF64, LA + 1, LA)
+) where {T,E}
+    GA = ws.M
+    @views copyto!(GA, G[Aidx, Aidx])
+    GA_svd = svd!(GA, alg = LinearAlgebra.QRIteration())
+
+    # GA⁻¹ = V * (1/d) * Uᵀ
+    U, d, V = GA_svd
+    Uᵀ = U'
+    lmul!(Diagonal(1 ./ d), Uᵀ)
+    H = ws.M
+    mul!(H, Uᵀ, V)
+
+    # diagonalize the matrix (GA⁻¹ - I)⁻¹
+    ϵ = eigvals(H)
+    @. ϵ -= 1
+    ϵ = sort(1 ./ ϵ, by=abs)
+
+    # apply Poisson binomial iterator
+    poissbino(ϵ, P=Pn)
+
+    return Pn
 end

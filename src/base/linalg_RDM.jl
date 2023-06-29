@@ -96,12 +96,61 @@ function det_UpV(U::LDR{T,E}, V::LDR{T,E}, ws::LDRWorkspace{T,E}) where {T,E}
     return real(logdetUpV), sgndetUpV
 end
 
-function ImA!(G::LDR{T,E}, A::LDR{T,E}, ws::LDRWorkspace{T,E}) where {T,E}
-    """
-        ImA!(G, A, ws)
+"""
+    invAmI!(A)
+
+    Stable calculation of A⁻¹ - I via SVD
+"""
+function invAmI!(A::AbstractMatrix{T}) where T
+    # SVD with QR iteration for better accuracy
+    A_svd = svd!(A, alg = LinearAlgebra.QRIteration())
+    U, d, V = A_svd
+    Uᵀ, Vᵀ = U', V'
+
+    # calculate VᵀU
+    VᵀU = Vᵀ * U
+
+    # calculate VᵀU <- d⁻¹ - VᵀU
+    @. VᵀU *= -1
+    @inbounds for i in eachindex(d)
+        VᵀU[i, i] += 1/d[i]
+    end
+
+    return V, VᵀU, Uᵀ
+end
+
+function compute_etgHam(
+    G₁::AbstractMatrix{T}, G₂::AbstractMatrix{T}, 
+    Aidx::Vector{Int}, ws::LDRWorkspace{T,E}
+) where {T,E}
+
+    # compute GA₁⁻¹ - I
+    GA₁ = ws.M
+    @views copyto!(GA₁, G₁[Aidx, Aidx])
+    U₁, d₁, V₁ = invAmI!(GA₁)
+    # compute GA₂⁻¹ - I
+    GA₂ = ws.M
+    @views copyto!(GA₂, G₂[Aidx, Aidx])
+    U₂, d₂, V₂ = invAmI!(GA₂)
+
+    # merge (GA₂⁻¹ - I)(GA₁⁻¹ - I)
+    U₁d₁ = ws.M
+    mul!(U₁d₁, U₁, d₁)
+    V₂U₁d₁ = ws.M′
+    mul!(V₂U₁d₁, V₂, ws.M)
+    d₂V₂U₁d₁ = ws.M
+    mul!(d₂V₂U₁d₁, d₂, V₂U₁d₁)
+    F = svd!(d₂V₂U₁d₁, alg = LinearAlgebra.QRIteration())
+
+    return U₂*F.U, F.S, F.Vt*V₁
+end
+
+"""
+    ImA!(G, A, ws)
         
-        Stable calculation of G = I - A
-    """
+    Stable calculation of G = I - A
+"""
+function ImA!(G::LDR{T,E}, A::LDR{T,E}, ws::LDRWorkspace{T,E}) where {T,E}
     Lₐ = A.L
     dₐ = A.d
     Rₐ = A.R
