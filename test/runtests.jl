@@ -420,6 +420,8 @@ end
     walker1 = HubbardWalker(system, qmc, φ₀)
     walker2 = HubbardWalker(system, qmc, φ₀)
     replica = Replica(extsys, walker1, walker2)
+    sweep!(system, qmc_nosave, replica, walker1, 1, loop_number=10, jumpReplica=true)
+    sweep!(system, qmc_nosave, replica, walker2, 2, loop_number=10, jumpReplica=true)
 
     ### test the first replica in the forward direction ###
     auxfield = copy(walker1.auxfield)
@@ -479,6 +481,9 @@ end
     walker1 = HubbardWalker(system, qmc, φ₀)
     walker2 = HubbardWalker(system, qmc, φ₀)
     replica = Replica(extsys, walker1, walker2)
+    sweep!(system, qmc_nosave, replica, walker1, 1, loop_number=10, jumpReplica=true)
+    sweep!(system, qmc_nosave, replica, walker2, 2, loop_number=10, jumpReplica=true)
+    
     sweep!_symmetric(system, qmc, replica, walker1, sampler, 1, collect(Θ+1:2Θ))
     auxfield = copy(walker1.auxfield)
     sweep!_symmetric(system, qmc, replica, walker1, sampler, 1, collect(Θ:-1:1))
