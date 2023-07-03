@@ -30,11 +30,10 @@ module SwapQMC
     include("./replica.jl")
 
     # local measurements
-    export EtgSampler, measure!
+    export EtgData, EtgSampler
     include("./base/sampler.jl")
 
     # MC operations
-    export sweep!_symmetric, jump_replica!
     include("./operations.jl")
     include("./operations_gs.jl")
     include("operations_subsys.jl")
@@ -54,7 +53,6 @@ module SwapQMC
     include("./dynamical_tuning/base.jl")
     include("./dynamical_tuning/dynamical_tuning.jl")
 
-    export EtgData, EtgMeasurement, 
-           measure_EE, measure_EE!, measure_Pn!
+    export measure!, measure_Pn!
     include("./measurements.jl")
 end

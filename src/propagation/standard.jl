@@ -101,7 +101,7 @@ function sweep!(
     end
 
     # At the end of the simulation, recompute all partial factorizations
-    build_propagator(walker.Bc, walker.ws, FC = walker.FC)
+    build_propagator!(walker.FC.B, walker.Bc, walker.ws)
 
     # save Fτs
     copyto!.(walker.F, tmpR)
@@ -201,7 +201,7 @@ function sweep!(
     end
 
     # At the end of the simulation, recompute all partial factorizations
-    build_propagator(walker.Bc, walker.ws, FC = walker.FC, singleSided=true)
+    build_propagator!(walker.FC.B, walker.Bc, walker.ws, isSymmetric=true)
 
     # save Fτs
     copyto!(walker.F[1], tmpR[1])

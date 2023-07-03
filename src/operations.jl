@@ -26,11 +26,13 @@ end
     are identical (hence only a single G is required)
 """
 function compute_Metropolis_ratio(
-    G::AbstractMatrix, α::Ta, sidx::Int
+    G::AbstractMatrix, α::Ta, sidx::Int;
+    forceSymmetry::Bool = false
 ) where {Ta<:Number}
     d = α * (1 - G[sidx, sidx])
     # accept ratio
     r = isreal(α) ? (1 + d)^2 : (1 + d)^2 / (α + 1)
+    forceSymmetry && (r = (1 + d) * conj(1 + d))
 
     return r, d+1
 end
@@ -225,41 +227,39 @@ function build_propagator(
 end
 
 """
-    build_propagator(matrix_cluster, ws)
+    build_propagator!(Fc, MatProd, ws)
 
     Propagate over the full space-time lattice given the matrix clusters
 """
-function build_propagator(
-    MatProd::Cluster{C}, ws::LDRWorkspace{T,E};
-    isReverse::Bool = true,
-    singleSided::Bool = false,
+function build_propagator!(
+    Fc::Vector{Fact}, MatProd::Cluster{C}, ws::LDRWorkspace{T,E};
     K = div(length(MatProd.B), 2),
-    V = size(MatProd.B[1]),
-    i = eltype(ws.M) <: Real ? 1.0 : 1.0+0.0im,
-    F = ldrs(Matrix(i*I, V), 2),
-    FC = Cluster(B = ldrs(Matrix(i*I, V), 2 * K))
-) where {C, T, E}
+    isReverse::Bool = true, isSymmetric::Bool = false
+) where {Fact, C, T, E}
+    V = size(MatProd.B[1])
+    i = eltype(ws.M) <: Real ? 1.0 : 1.0+0.0im
+    F = ldrs(Matrix(i*I, V), 2)
+
     Bm = MatProd.B
-    Bf = FC.B
 
     isReverse && begin 
         for n in K:-1:1
-            copyto!(Bf[n], F[1])
-            singleSided || copyto!(Bf[K + n], F[2])
+            copyto!(Fc[n], F[1])
+            isSymmetric || copyto!(Fc[K + n], F[2])
 
             rmul!(F[1], Bm[n], ws)
-            singleSided || rmul!(F[2], Bm[K + n], ws)
+            isSymmetric || rmul!(F[2], Bm[K + n], ws)
         end
 
         return F
     end
 
     for n in 1:K
-        copyto!(Bf[n], F[1])
-        singleSided || copyto!(Bf[K + n], F[2])
+        copyto!(Fc[n], F[1])
+        isSymmetric || copyto!(Fc[K + n], F[2])
 
         lmul!(Bm[n], F[1], ws)
-        singleSided || lmul!(Bm[K + n], F[2], ws)
+        isSymmetric || lmul!(Bm[K + n], F[2], ws)
     end
     
     return F

@@ -8,6 +8,7 @@ struct QMC
     measure_interval::Int64     # number of sweeps between two samples
     ### Extra Control Parameters ###
     useHeatbath::Bool           # use standard Metropolis ratio or the heat-bath ratio
+    forceSymmetry::Bool         # force the symmetry between spin-up and spin-down channel
     ### Numerical Stablization ###
     stab_interval::Int64        # number of matrix multiplications before the stablization
     K::Int64                    # number of groups of matrices
@@ -20,7 +21,7 @@ struct QMC
         system::System, 
         nwarmups::Int64, nsamples::Int64, measure_interval::Int64, 
         stab_interval::Int64, update_interval::Int64;
-        useHeatbath::Bool = true,
+        useHeatbath::Bool = true, forceSymmetry::Bool = false,
         saveRatio::Bool = false
     )
         # number of clusters
@@ -32,7 +33,7 @@ struct QMC
     
         return new(
             nwarmups, nsamples, measure_interval,
-            useHeatbath,
+            useHeatbath, forceSymmetry,
             stab_interval, K, K_interval, update_interval,
             saveRatio
         )

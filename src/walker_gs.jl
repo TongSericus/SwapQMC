@@ -42,7 +42,7 @@ struct HubbardWalker{T<:Number, wf<:AbstractMatrix, Fact<:Factorization{T}, E, C
     # Temporal array of matrices for cluster sweep
     Bl::Cluster{C}
     # Temporal matrix to store the product of a cluster of matrices
-    Bc::Vector{C}
+    Bc::Cluster{C}
 
     ### Date for debugging ###
     tmp_r::Vector{T}
@@ -107,10 +107,10 @@ function HubbardWalker(
     end
 
     # initialize temporal data for storage
-    Fτ = ldrs(G[1], 3)
+    Fτ = ldrs(G[1], 4)
     copyto!.(Fτ[2:3], Fr)
     Bl = Cluster(Ns, 2 * qmc.stab_interval, T = T)
-    Bc = [copy(Bl.B[1]), copy(Bl.B[1])]
+    Bc = Cluster(Ns, qmc.K, T = T)
     tmp_r = Vector{T}()
 
     return HubbardWalker{T, eltype(φ₀), eltype(Fl), eltype(ws.v), eltype(Bl.B)}(
