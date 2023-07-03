@@ -17,6 +17,31 @@ Base.similar(S::LDR{T, E}) where {T, E} = ldr(S)
 # Diagonalization
 LinearAlgebra.eigvals(F::LDR{T, E}) where {T, E} = eigvals(Diagonal(F.d) * F.R * F.L, sortby = abs)
 
+#############################################
+##### Functions for non-square matrices #####
+#############################################
+function rmul_qr!(Ur::AbstractMatrix, U::LDR{T,E}, V::AbstractMatrix) where {T,E}
+
+    mul!(Ur, U.R, V)
+    lmul_D!(U.d, Ur)
+    Q,_ = qr!(Ur)
+    mul!(Ur, U.L, Matrix(Q))
+
+    return Ur
+end
+
+function lmul_qr!(Ul::AbstractMatrix, U::AbstractMatrix, V::LDR{T,E}) where {T,E}
+    
+    mul!(Ul, U, V.L)
+    rmul_D!(Ul, V.d)
+    _,R = qr!(Ul)
+    for i in axes(R,2)
+        @views R[:, i] ./= norm(R[:, i])
+    end
+    mul!(Ul, R, V.R)
+
+    return Ul
+end
 ########################################################
 ##### Matrix Operations for Reduced Density Matrix #####
 ########################################################
@@ -117,6 +142,14 @@ function invAmI!(A::AbstractMatrix{T}) where T
     end
 
     return V, VᵀU, Uᵀ
+end
+
+function compute_etgHam(GA::AbstractMatrix{T}) where T
+    # compute GA⁻¹ - I
+    U, D, V = invAmI!(GA)
+    F = svd!(D, alg = LinearAlgebra.QRIteration())
+
+    return U*F.U, F.S, F.Vt*V
 end
 
 function compute_etgHam(

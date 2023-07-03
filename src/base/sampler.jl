@@ -1,79 +1,69 @@
-struct EtgSampler
+"""
+    Monte Carlo Sampler
+"""
+
+### preallocated matrices for computing entanglement spectrum ###
+struct EtgData{T, E}
+    # entanglement Hamiltonians
+    HA₁::LDR{T, E}
+    HA₂::LDR{T, E}
+
+    # temporal data for Gₐ
+    GA₁::LDR{T, E}
+    GA₂::LDR{T, E}
+
+    # temporal data for I-Gₐ
+    ImGA₁::LDR{T, E}
+    ImGA₂::LDR{T, E}
+
+    function EtgData(extsys::ExtendedSystem)
+        LA = extsys.LA
+    
+        T = eltype(extsys.system.auxfield)
+        HA₁, HA₂, GA₁, GA₂, ImGA₁, ImGA₂ = ldrs(zeros(T, LA, LA), 6)
+    
+        return new{T, Float64}(HA₁, HA₂, GA₁, GA₂, ImGA₁, ImGA₂)
+    end
+end
+
+struct EtgSampler{T, E}
     # partition and measure point (space and time)
     Aidx::Vector{Int}
     mp_x::Int
     mp_t::Int
+    L::Int
     
     # counters
     s_counter::Base.RefValue{Int} # count the number of collected samples
     m_counter::Base.RefValue{Int} # count the measurement interval
 
     # observables
-    p::Vector{Float64} # transition probability
-    Pn::Matrix{ComplexF64}  # probability distribution
+    p::Vector{Float64}          # transition probability
+    Pn₊::Matrix{ComplexF64}     # spin-up probability distribution
+    Pn₋::Matrix{ComplexF64}     # spin-down probability distribution
 
     # temporal data
+    data::EtgData{T,E}
     tmpPn::Matrix{ComplexF64}
+
+    # LDR workspace
+    wsA::LDRWorkspace{T, E}
 end
 
-function EtgSampler(extsys::ExtendedSystem, qmc::QMC)
+function EtgSampler(extsys::ExtendedSystem, qmc::QMC; nsamples=qmc.nsamples)
     Aidx = extsys.Aidx
     x = Aidx[end]
     θ = div(extsys.system.L, 2)
 
     p = zeros(qmc.nsamples)
 
-    LA = length(Aidx)
-    Pn = zeros(ComplexF64, LA+1, qmc.nsamples)
-    tmpPn = zeros(ComplexF64, LA + 1, LA)
+    L = min(length(Aidx), extsys.system.N[1])
+    Pn₊ = zeros(ComplexF64, L+1, nsamples)
+    Pn₋ = zeros(ComplexF64, L+1, nsamples)
+    tmpPn = zeros(ComplexF64, L+1, L)
 
-    return EtgSampler(Aidx, x, θ, Ref(1), Ref(0), p, Pn, tmpPn)
-end
+    data = EtgData(extsys)
+    wsA = ldr_workspace(data.HA₁)
 
-function replica_measure!(sampler::EtgSampler, replica::Replica)
-    s = sampler.s_counter[]
-    p = sampler.p
-
-    update!(replica)
-    p[s] = min(1, exp(-2 * replica.logdetGA[]))
-
-    sampler.s_counter[] += 1
-    sampler.m_counter[] = 0
-
-    return nothing
-end
-
-function measure!(sampler::EtgSampler, replica::Replica)
-    s = sampler.s_counter[]
-    p = sampler.p
-    Pn2 = sampler.Pn
-    tmpPn = sampler.tmpPn
-
-    update!(replica)
-
-    p[s] = min(1, exp(2 * replica.logdetGA[]))
-    Pn2_tmp = Pn2_estimator(replica, Pn2=tmpPn)
-    @views copyto!(Pn2[:, s], Pn2_tmp[:,end])
-    
-    sampler.s_counter[] += 1
-    sampler.m_counter[] = 0
-
-    return nothing
-end
-
-function measure!(sampler::EtgSampler, walker::HubbardSubsysWalker)
-    s = sampler.s_counter[]
-    Pn = sampler.Pn
-    tmpPn = sampler.tmpPn
-
-    G = walker.G[1]
-    wsA = walker.wsA
-
-    Pn_tmp = Pn_estimator(G, sampler.Aidx, wsA, Pn=tmpPn)
-    @views copyto!(Pn[:, s], Pn_tmp[:,end])
-
-    sampler.s_counter[] += 1
-    sampler.m_counter[] = 0
-
-    return nothing
+    return EtgSampler(Aidx, x, θ, L, Ref(1), Ref(0), p, Pn₊, Pn₋, data, tmpPn, wsA)
 end

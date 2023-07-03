@@ -2,193 +2,54 @@
     Entanglement Entropy Measurements
 """
 
-### Preallocate data for Entanglement Measures ###
-struct EtgData{T, E}
-    # entanglement Hamiltonians
-    HA₁::LDR{T, E}
-    HA₂::LDR{T, E}
+function replica_measure!(sampler::EtgSampler, replica::Replica)
+    s = sampler.s_counter[]
+    p = sampler.p
 
-    # temporal data for Gₐ
-    GA₁::LDR{T, E}
-    GA₂::LDR{T, E}
+    update!(replica)
+    p[s] = min(1, exp(-2 * replica.logdetGA[]))
 
-    # temporal data for I-Gₐ
-    ImGA₁::LDR{T, E}
-    ImGA₂::LDR{T, E}
+    sampler.s_counter[] += 1
+    sampler.m_counter[] = 0
 
-    # temporal matrix for Poisson binomial distribution
-    P::Matrix{ComplexF64}
-
-    ws::LDRWorkspace{T, E}
+    return nothing
 end
 
-function EtgData(extsys::ExtendedSystem)
-    LA = extsys.LA
+function measure!(sampler::EtgSampler, replica::Replica)
+    s = sampler.s_counter[]
+    p = sampler.p
+    Pn2₊ = sampler.Pn₊
+    #Pn2₋ = sampler.Pn₋
+    tmpPn = sampler.tmpPn
 
-    T = eltype(extsys.system.auxfield)
-    HA₁, HA₂, GA₁, GA₂, ImGA₁, ImGA₂ = ldrs(zeros(T, LA, LA), 6)
-    ws = ldr_workspace(HA₁)
-    P = zeros(ComplexF64, LA + 1, LA)
+    update!(replica)
 
-    return EtgData{T, Float64}(HA₁, HA₂, GA₁, GA₂, ImGA₁, ImGA₂, P, ws)
-end
-
-struct EtgMeasurement{T}
-    # transition probability
-    p::Base.RefValue{Float64}
-    # particle-number distribution (spin-resolved)
-    Pn2₊::Vector{T}
-    Pn2₋::Vector{T}
-
-    function EtgMeasurement(extsys::ExtendedSystem; T::DataType = ComplexF64)
-        LA = extsys.LA
-
-        Pn2₊ = zeros(T, LA + 1)
-        Pn2₋ = zeros(T, LA + 1)
-
-        return new{T}(Ref(0.0), Pn2₊, Pn2₋)
-    end
-end
-
-function measure_EE!(
-    etgm::EtgMeasurement,
-    etgdata::EtgData, extsys::ExtendedSystem, 
-    walker₁::HubbardGCWalker, walker₂::HubbardGCWalker,
-    swapper::HubbardGCSwapper
-)
-    LA = extsys.LA
-
-    HA₁ = etgdata.HA₁
-    HA₂ = etgdata.HA₂
-    GA₁ = etgdata.GA₁
-    GA₂ = etgdata.GA₂
-    ImGA₁ = etgdata.ImGA₁
-    ImGA₂ = etgdata.ImGA₂
-    ws = etgdata.ws
-
-    Pn2₊ = etgm.Pn2₊
-    Pn2₋ = etgm.Pn2₋
-
-    update!(walker₁, identicalSpin=extsys.system.useChargeHST)
-    update!(walker₂, identicalSpin=extsys.system.useChargeHST)
-
-    G₁ = walker₁.G
-    G₂ = walker₂.G
-
-    ### Spin-up part ###
-    # compute the sub Green's function
-    @views ldr!(GA₁, G₁[1][1:LA, 1:LA], ws)
-    @views ldr!(GA₂, G₂[1][1:LA, 1:LA], ws)
-
-    # compute I - Gₐ
-    ImA!(ImGA₁, GA₁, ws)
-    ImA!(ImGA₂, GA₂, ws)
-
-    # then measure Pn2₊
-    Pn2_estimator(GA₁, ImGA₁, GA₂, ImGA₂, ws, HA₁ = HA₁, HA₂ = HA₂, P = etgdata.P)
-    @views copyto!(Pn2₊, etgdata.P[:, end])
-
-    ### Spin-down part ###
-    # compute the sub Green's function
-    @views ldr!(GA₁, G₁[2][1:LA, 1:LA], ws)
-    @views ldr!(GA₂, G₂[2][1:LA, 1:LA], ws)
-
-    # compute I - Gₐ
-    ImA!(ImGA₁, GA₁, ws)
-    ImA!(ImGA₂, GA₂, ws)
+    p[s] = min(1, exp(2 * replica.logdetGA[]))
+    Pn2_estimator(replica, L=sampler.L, tmpPn=tmpPn)
+    @views copyto!(Pn2₊[:, s], tmpPn[:, end])
     
-    # then measure Pn2₋
-    Pn2_estimator(GA₁, ImGA₁, GA₂, ImGA₂, ws, HA₁ = HA₁, HA₂ = HA₂, P = etgdata.P)
-    @views copyto!(Pn2₋, etgdata.P[:, end])
-
-    # compute the transition probability
-    p = sum(walker₁.weight) + sum(walker₂.weight) - sum(swapper.weight)
-    etgm.p[] = min(1, exp(p))
+    sampler.s_counter[] += 1
+    sampler.m_counter[] = 0
 
     return nothing
 end
 
-function measure_EE!(
-    etgm::EtgMeasurement,
-    etgdata::EtgData, extsys::ExtendedSystem, 
-    replica::Replica
-)
-    LA = extsys.LA
+function measure_Pn!(sampler::EtgSampler, walker::HubbardWalker)
+    s = sampler.s_counter[]
+    Pn₊ = sampler.Pn₊
+    Pn₋ = sampler.Pn₋
+    tmpPn = sampler.tmpPn
 
-    HA₁ = etgdata.HA₁
-    HA₂ = etgdata.HA₂
-    GA₁ = etgdata.GA₁
-    GA₂ = etgdata.GA₂
-    ImGA₁ = etgdata.ImGA₁
-    ImGA₂ = etgdata.ImGA₂
-    ws = etgdata.ws
+    G = walker.G
+    wsA = sampler.wsA
 
-    Pn2₊ = etgm.Pn2₊
-    Pn2₋ = etgm.Pn2₋
+    Pn_estimator(G[1], sampler.Aidx, wsA, tmpPn=tmpPn)
+    @views copyto!(Pn₊[:, s], tmpPn[:, end])
+    Pn_estimator(G[2], sampler.Aidx, wsA, tmpPn=tmpPn)
+    @views copyto!(Pn₋[:, s], tmpPn[:, end])
 
-    G₁ = replica.G₀1
-    G₂ = replica.G₀2
-
-    ### Spin-up part ###
-    # compute the sub Green's function
-    @views ldr!(GA₁, G₁[1:LA, 1:LA], ws)
-    @views ldr!(GA₂, G₂[1:LA, 1:LA], ws)
-
-    # compute I - Gₐ
-    ImA!(ImGA₁, GA₁, ws)
-    ImA!(ImGA₂, GA₂, ws)
-
-    # then measure Pn2
-    Pn2_estimator(GA₁, ImGA₁, GA₂, ImGA₂, ws, HA₁ = HA₁, HA₂ = HA₂, P = etgdata.P)
-    # spin-up and spin-down part are exactly the same for SU(2) transform
-    @views copyto!(Pn2₊, etgdata.P[:, end])
-    @views copyto!(Pn2₋, etgdata.P[:, end])
-
-    # record the transition probability
-    etgm.p[] = min(1, exp(2*replica.logdetGA[]))
-
-    return nothing
-end
-
-function measure_EE(
-    walker₁::HubbardGCWalker, walker₂::HubbardGCWalker,
-    swapper::HubbardGCSwapper;
-    isIdenticalSpin::Bool = false
-)
-    fill_swapper!(swapper, walker₁, walker₂, identicalSpin=isIdenticalSpin)
-    p = sum(swapper.weight) - sum(walker₁.weight) - sum(walker₂.weight)
-
-    return min(1, exp(p))
-end
-
-function measure_Pn!(
-    etgm::EtgMeasurement,
-    etgdata::EtgData, extsys::ExtendedSystem, 
-    walker::W
-) where W
-    # set alias
-    LA = extsys.LA
-    GA = etgdata.GA₁
-    ImGA = etgdata.ImGA₁
-    ws = etgdata.ws
-    Pn2₊ = etgm.Pn2₊
-    Pn2₋ = etgm.Pn2₋
-    G₊ = walker.G[1]
-    G₋ = walker.G[2]
-
-    ### Spin-up part ###
-    @views ldr!(GA, G₊[1:LA, 1:LA], ws)
-    ImA!(ImGA, GA, ws)
-    Pn_estimator(GA, ImGA, ws, HA = etgdata.HA₁, P = etgdata.P)
-    @views copyto!(Pn2₊, etgdata.P[:, end])
-
-    extsys.system.useChargeHST && (@views copyto!(Pn2₋, etgdata.P[:, end]); return nothing)
-
-    ### Spin-down part ###
-    @views ldr!(GA, G₋[1:LA, 1:LA], ws)
-    ImA!(ImGA, GA, ws)
-    Pn_estimator(GA, ImGA, ws, HA = etgdata.HA₁, P = etgdata.P)
-    @views copyto!(Pn2₋, etgdata.P[:, end])
+    sampler.s_counter[] += 1
+    sampler.m_counter[] = 0
 
     return nothing
 end
@@ -209,7 +70,7 @@ function Grover_estimator(
     det_UpV(U, V, ws)
 end
 
-### Symmetry-resolved Calculations ###
+### Symmetry-resolving Calculations ###
 """
     poissbino(ϵ::Vector)
 
@@ -239,39 +100,57 @@ function poissbino(
     return P
 end
 
+@inline fermilevel(ϵ::AbstractVector, N::Int) = begin
+    Ns = length(ϵ)
+    return sqrt(abs(ϵ[Ns - N + 1] * ϵ[Ns - N]))
+end
+
 """
-    Pn2_estimator(GA₁, ImGA₁, GA₂, ImGA₂, ws)
+    poissbino_recursion(ϵ::Vector)
+
+    Poisson binomial recursion with rescaled spectrum, which improves the accuracy of
+    computing tail distributions at the expense of increased computational cost
+"""
+function poissbino_recursion(
+    ϵ::AbstractVector{T};
+    Ns::Int64 = length(ϵ),
+    logPn::AbstractVector{Tp} = zeros(eltype(ϵ), Ns+1),
+    Pμ::AbstractMatrix{Tp} = zeros(eltype(ϵ), Ns+1, Ns),
+    isRescale::Bool = true
+) where {T, Tp}
+    isRescale || return poissbino(ϵ, P=Pμ)
+
+    # 0-particle sector (empty)
+    logPn[1] = -sum(log.(1 .+ ϵ))
+    # Ns-particle sector (fully filled)
+    logPn[Ns+1] = sum(log.(ϵ)) + logPn[1]
+    # rescale the spectrum to precisely compute each entry in Pn
+    for N = 1 : Ns-1
+        # rescale the spectrum
+        μ = fermilevel(ϵ, N)
+        ϵ′ = ϵ / μ
+        # recursion with the new spectrum
+        poissbino(ϵ′, P=Pμ)
+        # obtain normalization with respect to rescaled and original spectrum
+        logZμ = sum(log.(1 .+ ϵ′))
+        logZ₀ = sum(log.(1 .+ ϵ))
+        # compute log(Pₙ)
+        logPn[N+1] = logZμ - logZ₀ + log(Pμ[N+1, Ns]) + N*log(μ)
+    end
+
+    return logPn
+end
+
+"""
+    Pn2_estimator(...)
 
     Stable calculation of P_{n, 2} := exp(-S_{2, n}) / exp(-S_{2}) through recursion,
     via the eigvalues of the entanglement Hamiltonian Hₐ = Gₐ₁(I - Gₐ₁)⁻¹Gₐ₂(I - Gₐ₂)⁻¹
 """
 function Pn2_estimator(
-    GA₁::LDR{T, E}, ImGA₁::LDR{T, E}, 
-    GA₂::LDR{T, E}, ImGA₂::LDR{T, E}, 
-    ws::LDRWorkspace{T, E}; 
-    HA₁::LDR{T, E} = similar(GA₁), HA₂::LDR{T, E} = similar(ImGA₁),
-    LA = length(GA₁.d),
-    P::AbstractMatrix{ComplexF64} = zeros(ComplexF64, LA + 1, LA)
-) where {T, E}
-    copyto!(HA₁, GA₁)
-    copyto!(HA₂, GA₂)
-
-    # compute Hₐ = Gₐ₁(I - Gₐ₁)⁻¹Gₐ₂(I - Gₐ₂)⁻¹
-    rdiv!(HA₁, ImGA₁, ws)
-    rdiv!(HA₂, ImGA₂, ws)
-    HA = HA₁
-    rmul!(HA, HA₂, ws)
-
-    # diagonalize, then apply the Poisson binomial iterator
-    ϵ = eigvals(HA)
-    poissbino(ϵ, P=P)
-
-    return P
-end
-
-function Pn2_estimator(replica::Replica; 
-    LA::Int = length(replica.Aidx), 
-    Pn2::AbstractMatrix{ComplexF64} = zeros(ComplexF64, LA + 1, LA)
+    replica::Replica; 
+    L::Int = length(replica.Aidx), 
+    tmpPn::AbstractMatrix{ComplexF64} = zeros(ComplexF64, L+1, L)
 )
     Aidx = replica.Aidx
     G₁ = replica.G₀1
@@ -284,59 +163,91 @@ function Pn2_estimator(replica::Replica;
     mul!(H, V, U)
     ϵ = eigvals(H)
     ϵ = sort(1 ./ ϵ, by=abs)
-    poissbino(ϵ, P=Pn2)
 
-    return Pn2
+    L == length(Aidx) || (ϵ = ϵ[end-L+1 : end])
+
+    # apply Poisson binomial iterator
+    poissbino(ϵ, P=tmpPn)
+
+    return tmpPn
 end
 
 """
-    Pn_estimator(GA, ImGA, ws)
+    Pn_estimator(G, Aidx, ws)
 
     Stable calculation of the particle number distribution P_{n} through recursion,
-    via the eigvalues of the entanglement Hamiltonian Hₐ = Gₐ(I - Gₐ)⁻¹
+    via the eigvalues of the entanglement Hamiltonian Hₐ = (Gₐ⁻¹ - I)
 """
 function Pn_estimator(
-    GA::LDR{T, E}, ImGA::LDR{T, E}, 
-    ws::LDRWorkspace{T, E}; 
-    HA::LDR{T, E} = similar(GA),
-    LA = length(GA.d),
-    P::AbstractMatrix{ComplexF64} = zeros(ComplexF64, LA + 1, LA)
-) where {T, E}
-    copyto!(HA, GA)
+    G::AbstractMatrix{T}, Aidx::Vector{Int}, ws::LDRWorkspace{T,E};
+    L::Int = length(Aidx),
+    tmpPn::AbstractMatrix{ComplexF64} = zeros(ComplexF64, L+1, L)
+) where {T,E}
+    ## compute the SVD of GA⁻¹ - I
+    #GA = ws.M
+    #@views copyto!(GA, G[Aidx, Aidx])
+    #U, d, V = compute_etgHam(GA)
 
-    # compute Hₐ = Gₐ(I - Gₐ)⁻¹
-    rdiv!(HA, ImGA, ws)
+    ## diagonalize the matrix (GA⁻¹ - I)⁻¹
+    #Ut = ws.M′
+    #transpose!(Ut, U)
+    #lmul!(Diagonal(1 ./ d), Ut)
+    #Vt = ws.M″
+    #transpose!(Vt, V)
+    #H = ws.M
+    #mul!(H, Ut, Vt)
+    #ϵ = eigvals(H, sortby=abs)
 
-    # diagonalize, then apply the Poisson binomial iterator
+    # compute the SVD of GA
+    GA = ws.M
+    @views copyto!(GA, G[Aidx, Aidx])
+    GA_svd = svd!(GA, alg = LinearAlgebra.QRIteration())
+    U, d, V = GA_svd
+
+    # compute the eigenvalues of GA via its SVD
+    Vt = ws.M
+    adjoint!(Vt, V)
+    dVt = ws.M′
+    mul!(dVt, Diagonal(d), Vt)
+    HA = ws.M
+    mul!(HA, dVt, U)
     ϵ = eigvals(HA)
-    poissbino(ϵ, P=P)
 
-    return P
+    # compute the eigenvalues of (GA⁻¹ - I)⁻¹
+    ϵ = 1 ./ (1 ./ ϵ .- 1)
+    sort!(ϵ, by=abs)
+
+    # apply Poisson binomial iterator
+    poissbino(ϵ, P=tmpPn)
+
+    return tmpPn
 end
 
-function Pn_estimator(
-    G::AbstractMatrix{T}, Aidx::Vector{Int}, ws::LDRWorkspace{T,E};
-    LA = length(Aidx),
-    Pn::AbstractMatrix{ComplexF64} = zeros(ComplexF64, LA + 1, LA)
+"""
+    genfunc_estimator(...)
+
+    Estimating the generating function of the probability distribution
+"""
+function genfunc_estimator(
+    G::AbstractMatrix{T}, Aidx::Vector{Int}, ws::LDRWorkspace{T, E};
+    # number of quadrature points
+    Nq::Int = length(Aidx) + 1
 ) where {T,E}
     GA = ws.M
     @views copyto!(GA, G[Aidx, Aidx])
     GA_svd = svd!(GA, alg = LinearAlgebra.QRIteration())
-
-    # GA⁻¹ = V * (1/d) * Uᵀ
     U, d, V = GA_svd
-    Uᵀ = U'
-    lmul!(Diagonal(1 ./ d), Uᵀ)
-    H = ws.M
-    mul!(H, Uᵀ, V)
+    
+    Vt = ws.M
+    transpose!(Vt, V)
+    dVt = ws.M′
+    mul!(dVt, Diagonal(d), Vt)
+    HA = ws.M
+    mul!(HA, dVt, U)
+    ϵ = eigvals(HA, sortby=abs)
 
-    # diagonalize the matrix (GA⁻¹ - I)⁻¹
-    ϵ = eigvals(H)
-    @. ϵ -= 1
-    ϵ = sort(1 ./ ϵ, by=abs)
+    iφ = im * [2 * π * m / Nq for m = 1 : Nq]
+    expiφ = exp.(iφ)
 
-    # apply Poisson binomial iterator
-    poissbino(ϵ, P=Pn)
-
-    return Pn
+    χ = [prod(1 .+ (expiφ[k] - 1) .* ϵ) for k in 1:Nq]
 end
