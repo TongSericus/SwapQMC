@@ -53,6 +53,6 @@ module SwapQMC
     include("./dynamical_tuning/base.jl")
     include("./dynamical_tuning/dynamical_tuning.jl")
 
-    export measure!, measure_Pn!
+    export measure_replica!, measure_Pn!
     include("./measurements.jl")
 end

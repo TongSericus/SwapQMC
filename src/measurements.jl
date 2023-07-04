@@ -2,31 +2,27 @@
     Entanglement Entropy Measurements
 """
 
-function replica_measure!(sampler::EtgSampler, replica::Replica)
-    s = sampler.s_counter[]
-    p = sampler.p
-
-    update!(replica)
-    p[s] = min(1, exp(-2 * replica.logdetGA[]))
-
-    sampler.s_counter[] += 1
-    sampler.m_counter[] = 0
-
-    return nothing
-end
-
-function measure!(sampler::EtgSampler, replica::Replica)
+function measure_replica!(sampler::EtgSampler, replica::Replica; direction::Int = 2)
     s = sampler.s_counter[]
     p = sampler.p
     Pn2₊ = sampler.Pn₊
-    #Pn2₋ = sampler.Pn₋
+    Pn2₋ = sampler.Pn₋
     tmpPn = sampler.tmpPn
 
-    update!(replica)
+    direction == 1 && begin
+        update!(replica)
+        p[s] = min(1, exp(-2 * replica.logdetGA[]))
 
+        sampler.s_counter[] += 1
+        sampler.m_counter[] = 0
+
+        return nothing
+    end
+    
     p[s] = min(1, exp(2 * replica.logdetGA[]))
-    Pn2_estimator(replica, L=sampler.L, tmpPn=tmpPn)
+    Pn2_estimator(replica, tmpPn=tmpPn)
     @views copyto!(Pn2₊[:, s], tmpPn[:, end])
+    @views copyto!(Pn2₋[:, s], conj(tmpPn[:, end]))
     
     sampler.s_counter[] += 1
     sampler.m_counter[] = 0
@@ -164,8 +160,6 @@ function Pn2_estimator(
     ϵ = eigvals(H)
     ϵ = sort(1 ./ ϵ, by=abs)
 
-    L == length(Aidx) || (ϵ = ϵ[end-L+1 : end])
-
     # apply Poisson binomial iterator
     poissbino(ϵ, P=tmpPn)
 
@@ -183,21 +177,6 @@ function Pn_estimator(
     L::Int = length(Aidx),
     tmpPn::AbstractMatrix{ComplexF64} = zeros(ComplexF64, L+1, L)
 ) where {T,E}
-    ## compute the SVD of GA⁻¹ - I
-    #GA = ws.M
-    #@views copyto!(GA, G[Aidx, Aidx])
-    #U, d, V = compute_etgHam(GA)
-
-    ## diagonalize the matrix (GA⁻¹ - I)⁻¹
-    #Ut = ws.M′
-    #transpose!(Ut, U)
-    #lmul!(Diagonal(1 ./ d), Ut)
-    #Vt = ws.M″
-    #transpose!(Vt, V)
-    #H = ws.M
-    #mul!(H, Ut, Vt)
-    #ϵ = eigvals(H, sortby=abs)
-
     # compute the SVD of GA
     GA = ws.M
     @views copyto!(GA, G[Aidx, Aidx])
