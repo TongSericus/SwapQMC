@@ -48,7 +48,7 @@ function sweep!(
 )
     Θ = div(qmc.K,2)
 
-    if system.useChargeHST
+    if system.useChargeHST || qmc.forceSymmetry
         for i in 1 : loop_number
             sweep!_symmetric(system, qmc, replica, walker, ridx, collect(Θ+1:2Θ))
             sweep!_symmetric(system, qmc, replica, walker, ridx, collect(Θ:-1:1))
@@ -248,6 +248,7 @@ function sweep!_symmetric(
 
         # copy green's function to the spin-down sector
         copyto!(walker.G[2], walker.G[1])
+        qmc.forceSymmetry && conj!(walker.G[2])
 
         return nothing
     end
@@ -298,6 +299,7 @@ function sweep!_symmetric(
 
     # copy green's function to the spin-down sector
     copyto!(walker.G[2], walker.G[1])
+    qmc.forceSymmetry && conj!(walker.G[2])
 
     return nothing
 end
