@@ -6,13 +6,12 @@
 
 function sweep!(
     system::Hubbard, qmc::QMC, walker::HubbardWalker, 
-    #replica::Replica, sampler::EtgSampler;
     sampler::EtgSampler;
     loop_number::Int = 1
 )
     Θ = div(qmc.K,2)
 
-    if system.useChargeHST
+    if system.useChargeHST || qmc.forceSymmetry
         for i in 1 : loop_number
             sweep!_symmetric(system, qmc, walker, collect(Θ+1:2Θ))
             sweep!_symmetric(system, qmc, walker, collect(2Θ:-1:Θ+1))
@@ -65,15 +64,15 @@ function update_cluster!_symmetric(
         for j in 1 : system.V
             local_update!_symmetric(σ, j, l, walker,
                                     direction=direction,
+                                    forceSymmetry=qmc.forceSymmetry,
                                     saveRatio=qmc.saveRatio, 
                                     useHeatbath=qmc.useHeatbath
                                 )
             # make local measurements
-            if l == sampler.mp_t && j == sampler.mp_x && direction == 2
+            if l == sampler.mp_t && j == sampler.mp_x
                 sampler.m_counter[] += 1
                 if sampler.m_counter[] == qmc.measure_interval
                     wrap_G!(G, Bk⁻¹, Bk, ws)
-                    #replica_measure!(sampler, replica)
                     measure_Pn!(sampler, walker)
                     wrap_G!(G, Bk, Bk⁻¹, ws)
                 end
@@ -140,6 +139,7 @@ function sweep!_symmetric(
         slice[end] == qmc.K ? ldr!(Fl, I) : (copyto!(Fl, F0); copyto!(F0, Fr))
         # copy green's function to the spin-down sector
         copyto!(walker.G[2], walker.G[1])
+        qmc.forceSymmetry && conj!(walker.G[2])
 
         return nothing
     end
@@ -170,6 +170,7 @@ function sweep!_symmetric(
     slice[end] == 1 ? ldr!(Fr, I) : (copyto!(Fr, F0); copyto!(F0, Fl))
     # copy green's function to the spin-down sector
     copyto!(walker.G[2], walker.G[1])
+    qmc.forceSymmetry && conj!(walker.G[2])
 
     return nothing
 end

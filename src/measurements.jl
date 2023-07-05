@@ -2,7 +2,10 @@
     Entanglement Entropy Measurements
 """
 
-function measure_replica!(sampler::EtgSampler, replica::Replica; direction::Int = 2)
+function measure_replica!(
+    sampler::EtgSampler, replica::Replica; 
+    direction::Int = 2, localMeasurement::Bool = false
+)
     s = sampler.s_counter[]
     p = sampler.p
     Pn2₊ = sampler.Pn₊
@@ -18,7 +21,9 @@ function measure_replica!(sampler::EtgSampler, replica::Replica; direction::Int 
 
         return nothing
     end
-    
+
+    localMeasurement && update!(replica)
+
     p[s] = min(1, exp(2 * replica.logdetGA[]))
     Pn2_estimator(replica, tmpPn=tmpPn)
     @views copyto!(Pn2₊[:, s], tmpPn[:, end])

@@ -11,13 +11,13 @@ function sweep!(
 )
     Θ = div(qmc.K,2)
 
-    if system.useChargeHST
+    if system.useChargeHST || qmc.forceSymmetry
         for i in 1 : loop_number
-            sweep!_symmetric(system, qmc, replica, walker, sampler, ridx, collect(Θ+1:2Θ))
+            sweep!_symmetric(system, qmc, replica, walker, ridx, collect(Θ+1:2Θ))
             sweep!_symmetric(system, qmc, replica, walker, sampler, ridx, collect(Θ:-1:1))
         end
 
-        jumpReplica && jump_replica!(replica,ridx)
+        jumpReplica && jump_replica!(replica, ridx)
         return nothing
     end
 end
@@ -81,7 +81,7 @@ function update_cluster!_symmetric(
                 sampler.m_counter[] += 1
                 if sampler.m_counter[] == qmc.measure_interval
                     wrap_G!(Gτ, Bk⁻¹, Bk, ws)
-                    measure!(sampler, replica)
+                    measure_replica!(sampler, replica, localMeasurement=true)
                     wrap_G!(Gτ, Bk, Bk⁻¹, ws)
                 end
             end
@@ -183,6 +183,7 @@ function sweep!_symmetric(
 
         # copy green's function to the spin-down sector
         copyto!(walker.G[2], walker.G[1])
+        qmc.forceSymmetry && conj!(walker.G[2])
 
         return nothing
     end
@@ -233,6 +234,7 @@ function sweep!_symmetric(
 
     # copy green's function to the spin-down sector
     copyto!(walker.G[2], walker.G[1])
+    qmc.forceSymmetry && conj!(walker.G[2])
 
     return nothing
 end

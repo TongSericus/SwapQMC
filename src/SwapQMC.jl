@@ -29,7 +29,7 @@ module SwapQMC
     include("./walker_gs.jl")
     include("./replica.jl")
 
-    # local measurements
+    # Sampler
     export EtgData, EtgSampler
     include("./base/sampler.jl")
 
@@ -47,6 +47,9 @@ module SwapQMC
     include("./propagation/standard_gs.jl")
     include("./propagation/replica_gs.jl")
     include("./propagation/standard_subsys.jl")
+    # local measurements
+    include("./propagation/local_measurements/standard_gs.jl")
+    include("./propagation/local_measurements/replica_gs.jl")
     
     export TunableHubbard, TunableHubbardWalker,
            MuTuner, dynamical_tuning
