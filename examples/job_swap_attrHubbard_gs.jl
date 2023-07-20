@@ -1,3 +1,5 @@
+include("./qmc_swap_attrHubbard_gs.jl")
+
 const Lx, Ly = 8, 8
 const T = hopping_matrix_Hubbard_2d(Lx, Ly, 1.0)
 const U_list = [-1.0, -2.0, -3.0, -4.0, -5.0, -6.0, -7.0, -8.0, -10.0]
