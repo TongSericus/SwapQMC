@@ -22,12 +22,13 @@ function run_regular_sampling_gs(
 
         update!(ρ₊, walker, 1)
         update!(ρ₋, walker, 2)
-        measure_SpinCorr(sampler, ρ₊, ρ₋)
+        measure_ChargeCorr(sampler, ρ₊, ρ₋)
+        measure_SpinCorr(sampler, ρ₊, ρ₋, addCount=true)
     end
 
     # store the measurement
     jldopen("$(path)/$(filename)", "w") do file
-        write(file, "cicj", sampler.cᵢ₊ᵣcᵢ)
+        write(file, "ninj", sampler.nᵢ₊ᵣnᵢ)
         write(file, "SiSj", sampler.Sᵢ₊ᵣSᵢ)
     end
 end

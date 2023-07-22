@@ -24,18 +24,21 @@ function update!(
     G = walker.G[spin]
     transpose!(ρ₁, G)
 
-    for i in eachindex(ρ₁)
-        @inbounds ρ₁[i] *= -1
+    @inbounds for i in eachindex(ρ₁)
+        ρ₁[i] *= -1
     end
-    @views ρ₁[diagind(ρ₁)] .+= 1 
+    @views ρ₁[diagind(ρ₁)] .+= 1
 
     return nothing
 end
 
 """
-    Compute the two-body estimator <cᵢ⁺ cⱼ cₖ⁺ cₗ> using Wick's theorem
+    ρ₂(ρ::DensityMatrix, i::Int, j::Int, k::Int, l::Int)
+
+    Compute the two-body estimator <cᵢ⁺ cⱼ cₖ⁺ cₗ> using Wick's theorem as
+    <cᵢ⁺ cⱼ cₖ⁺ cₗ> = <cᵢ⁺ cⱼ> <cₖ⁺ cₗ> + <cᵢ⁺ cl> (δₖⱼ - <cₖ⁺ cⱼ>)
 """
 function ρ₂(ρ::DensityMatrix, i::Int, j::Int, k::Int, l::Int)
     ρ₁ = ρ.ρ₁
-    return ρ₁[j, i] * ρ₁[l, k] + ρ₁[l, i] * ((k==j) - ρ₁[j, k])
+    return ρ₁[i, j] * ρ₁[k, l] + ρ₁[i, l] * ((k==j) - ρ₁[k, j])
 end
