@@ -1,55 +1,5 @@
 using SwapQMC, Test
 
-###############################################
-##### Define Kinetic Matrices for Testing #####
-###############################################
-
-function hopping_matrix_Hubbard_2D(Lx::Int, Ly::Int64, t::Float64)
-    L = Lx * Ly
-    T = zeros(L, L)
-
-    x = collect(0:L-1) .% Lx       # x positions for sites
-    y = div.(collect(0:L-1), Lx)   # y positions for sites
-    T_x = (x .+ 1) .% Lx .+ Lx * y      # translation along x-direction
-    T_y = x .+ Lx * ((y .+ 1) .% Ly)    # translation along y-direction
-
-    hop_ind_left = [CartesianIndex(i+1, T_x[i+1] + 1) for i in 0 : L-1]
-    hop_ind_right = [CartesianIndex(T_x[i+1] + 1, i+1) for i in 0 : L-1]
-    hop_ind_down = [CartesianIndex(i+1, T_y[i+1] + 1) for i in 0 : L-1]
-    hop_ind_up = [CartesianIndex(T_y[i+1] + 1, i+1) for i in 0 : L-1]
-
-    @views T[hop_ind_left] .= -t
-    @views T[hop_ind_right] .= -t
-    @views T[hop_ind_down] .= -t
-    @views T[hop_ind_up] .= -t
-    
-    return T
-end
-
-function hopping_matrix_sshHubbard_1D(
-    L::Int, t::Float64, δt::Float64; 
-    isOBC::Bool = true
-)
-    T = zeros(L, L)
-
-    isOBC ? begin
-        hop_ind_left = [CartesianIndex(i+1, (i+1)%L+1) for i in 0 : L-2]
-        hop_ind_right = [CartesianIndex((i+1)%L+1, i+1) for i in 0 : L-2]
-        hop_amp = [-t-δt*(-1)^i for i in 0 : L-2]
-    end :
-    # periodic boundary condition
-    begin
-        hop_ind_left = [CartesianIndex(i+1, (i+1)%L+1) for i in 0 : L-1]
-        hop_ind_right = [CartesianIndex((i+1)%L+1, i+1) for i in 0 : L-1]
-        hop_amp = [-t-δt*(-1)^i for i in 0 : L-1]
-    end
-
-    @views T[hop_ind_left] = hop_amp
-    @views T[hop_ind_right] = hop_amp
-    
-    return T
-end
-
 #######################
 ##### Test Module #####
 #######################
@@ -60,7 +10,7 @@ end
 
     ### standard sweep ###
     Lx, Ly = 4, 4
-    T = hopping_matrix_Hubbard_2D(Lx, Ly, 1.0)
+    T = hopping_matrix_Hubbard_2d(Lx, Ly, 1.0)
 
     system = GenericHubbard(
         # (Nx, Ny), (N_up, N_dn)
@@ -160,7 +110,7 @@ end
 
     ### standard sweep ###
     L = 12
-    T = hopping_matrix_sshHubbard_1D(L, 1.0, -0.1)
+    T = hopping_matrix_ssh_1d(L, 1.0, -0.1)
     system = GenericHubbard(
         # (Nx, Ny), (N_up, N_dn)
         (L, 1, 1), (6, 6),
@@ -286,7 +236,7 @@ end
 function compute_ratio_replica(
     extsys::ExtendedSystem, qmc::QMC,
     auxfield::AbstractArray{Int}, idx::Tuple{Int, Int}, 
-    walker::HubbardWalker; ridx::Int = 1
+    walker::HubbardWalker; ridx::Int = 1, λₖ::Float64 = 1.0
 )
     system = extsys.system
     idx_x, idx_t = idx
@@ -308,14 +258,133 @@ function compute_ratio_replica(
     logdetB′ = compute_gs_projected_matrix(walker″)
     logr = 2*(logdetB′ - logdetB) + 2*replica′.logdetGA[] - 2*replica″.logdetGA[]
 
-    return exp(logr)
+    return exp(2*(logdetB′ - logdetB)) * exp(2*(replica′.logdetGA[] - replica″.logdetGA[]))^λₖ
+end
+
+function test_regular_sweep(system::Hubbard, qmc::QMC, walker::HubbardWalker)
+
+    r = zeros(Float64, 4)
+    idx = zeros(Int, 4)
+
+    Θ = div(qmc.K,2)
+    θ = div(system.L,2)
+
+    ## Test θ -> 2θ ##
+    auxfield = copy(walker.auxfield)
+    sweep!_symmetric(system, qmc, walker, collect(Θ+1:2Θ))
+    # pick a random point in time [θ:2θ]
+    idx_t = rand(θ+1:2θ)
+    idx_x = rand(1:system.V)
+    idx[1] = (idx_t-θ-1)*system.V + idx_x
+    @. auxfield[:, θ+1:idx_t-1] = walker.auxfield[:, θ+1:idx_t-1]
+    @. auxfield[1:idx_x-1, idx_t] = walker.auxfield[1:idx_x-1, idx_t]
+    r[1] = compute_ratio_regular(system, qmc, auxfield, (idx_x, idx_t), walker.φ₀)
+
+    ## Test 2θ -> Θ ##
+    auxfield = copy(walker.auxfield)
+    sweep!_symmetric(system, qmc, walker, collect(2Θ:-1:Θ+1))
+    # pick a random point in time [θ:2θ]
+    idx_t = rand(θ+1:2θ)
+    idx_x = rand(1:system.V)
+    idx[2] = (2θ-idx_t)*system.V + idx_x + θ*system.V
+    @. auxfield[:, idx_t+1:2θ] = walker.auxfield[:, idx_t+1:2θ]
+    @. auxfield[1:idx_x-1, idx_t] = walker.auxfield[1:idx_x-1, idx_t]
+    r[2] = compute_ratio_regular(system, qmc, auxfield, (idx_x, idx_t), walker.φ₀)
+
+    ## Test Θ -> 0 ##
+    auxfield = copy(walker.auxfield)
+    sweep!_symmetric(system, qmc, walker, collect(Θ:-1:1))
+    # pick a random point in time [1:Θ]
+    idx_t = rand(1:θ)
+    idx_x = rand(1:system.V)
+    idx[3] = (θ-idx_t)*system.V + idx_x + 2*θ*system.V
+    @. auxfield[:, θ:-1:idx_t+1] = walker.auxfield[:, θ:-1:idx_t+1]
+    @. auxfield[1:idx_x-1, idx_t] = walker.auxfield[1:idx_x-1, idx_t]
+    r[3] = compute_ratio_regular(system, qmc, auxfield, (idx_x, idx_t), walker.φ₀)
+
+    ## Test 0 -> Θ ##
+    auxfield = copy(walker.auxfield)
+    sweep!_symmetric(system, qmc, walker, collect(1:Θ))
+    # pick a random point in time [1:Θ]
+    idx_t = rand(1:θ)
+    idx_x = rand(1:system.V)
+    idx[4] = (idx_t-1)*system.V + idx_x + 3*θ*system.V
+    @. auxfield[:, 1:idx_t-1] = walker.auxfield[:, 1:idx_t-1]
+    @. auxfield[1:idx_x-1, idx_t] = walker.auxfield[1:idx_x-1, idx_t]
+    r[4] = compute_ratio_regular(system, qmc, auxfield, (idx_x, idx_t), walker.φ₀)
+
+    return r, idx
+end
+
+function test_replica_sweep(extsys::ExtendedSystem, qmc::QMC, replica::Replica; λₖ::Float64 = 1.0)
+    
+    r = zeros(Float64, 4)
+    idx = zeros(Int, 4)
+
+    system = extsys.system
+    Θ = div(qmc.K,2)
+    θ = div(system.L,2)
+
+    walker1 = replica.walker1
+    walker2 = replica.walker2
+
+    ### test the first replica in the forward direction ###
+    auxfield = copy(walker1.auxfield)
+    sweep!_symmetric(system, qmc, replica, walker1, 1, collect(Θ+1:2Θ))
+
+    # pick a random point in time [θ:2θ]
+    idx_t = rand(θ+1:2θ)
+    idx_x = rand(1:system.V)
+    idx[1] = (idx_t-θ-1)*system.V + idx_x
+    @. auxfield[:, θ+1:idx_t-1] = walker1.auxfield[:, θ+1:idx_t-1]
+    @. auxfield[1:idx_x-1, idx_t] = walker1.auxfield[1:idx_x-1, idx_t]
+    r[1] = compute_ratio_replica(extsys, qmc, auxfield, (idx_x, idx_t), walker2, ridx=1, λₖ=λₖ)
+
+    ### test the first replica in the backward direction ###
+    auxfield = copy(walker1.auxfield)
+    sweep!_symmetric(system, qmc, replica, walker1, 1, collect(Θ:-1:1))
+    # pick a random point in time [θ:2θ]
+    idx_t = rand(1:θ)
+    idx_x = rand(1:system.V)
+    idx[2] = (θ - idx_t)*system.V + idx_x + div(system.V*system.L,2)
+    @. auxfield[:, idx_t+1:θ] = walker1.auxfield[:, idx_t+1:θ]
+    @. auxfield[1:idx_x-1, idx_t] = walker1.auxfield[1:idx_x-1, idx_t]
+    r[2] = compute_ratio_replica(extsys, qmc, auxfield, (idx_x, idx_t), walker2, ridx=1, λₖ=λₖ)
+
+    ### switch to the second replica and perform the same test ###
+    jump_replica!(replica, 1)
+
+    ## forward direction ##
+    auxfield = copy(walker2.auxfield)
+    sweep!_symmetric(system, qmc, replica, walker2, 2, collect(Θ+1:2Θ))
+
+    # pick a random point in time [θ:2θ]
+    idx_t = rand(θ+1:2θ)
+    idx_x = rand(1:system.V)
+    idx[3] = (idx_t-θ-1)*system.V + idx_x
+    @. auxfield[:, θ+1:idx_t-1] = walker2.auxfield[:, θ+1:idx_t-1]
+    @. auxfield[1:idx_x-1, idx_t] = walker2.auxfield[1:idx_x-1, idx_t]
+    r[3] = compute_ratio_replica(extsys, qmc, auxfield, (idx_x, idx_t), walker1, ridx=2, λₖ=λₖ)
+
+    ## backward direction ##
+    auxfield = copy(walker2.auxfield)
+    sweep!_symmetric(system, qmc, replica, walker2, 2, collect(Θ:-1:1))
+    # pick a random point in time [θ:2θ]
+    idx_t = rand(1:θ)
+    idx_x = rand(1:system.V)
+    idx[4] = (θ - idx_t)*system.V + idx_x + div(system.V*system.L,2)
+    @. auxfield[:, idx_t+1:θ] = walker2.auxfield[:, idx_t+1:θ]
+    @. auxfield[1:idx_x-1, idx_t] = walker2.auxfield[1:idx_x-1, idx_t]
+    r[4] = compute_ratio_replica(extsys, qmc, auxfield, (idx_x, idx_t), walker1, ridx=2, λₖ=λₖ)
+
+    return r, idx
 end
 
 # ground state test
 @testset "SwapQMC_GS" begin
-    ##### Attractive 2D Hubbard Model #####
+    ##### Attractive 2D Hubbard Model with Charge Decomposition #####
     Lx, Ly = 4, 4
-    T = hopping_matrix_Hubbard_2D(Lx, Ly, 1.0)
+    T = hopping_matrix_Hubbard_2d(Lx, Ly, 1.0)
 
     system = GenericHubbard(
         # (Nx, Ny), (N_up, N_dn)
@@ -323,11 +392,11 @@ end
         # t, U
         T, -4.0,
         # μ
-        0.5,
+        0.0,
         # β, L
         16.0, 160,
         # data type of the system
-        sys_type = Float64,
+        sys_type=Float64,
         # if use charge decomposition
         useChargeHST=true,
         # if use first-order Trotteriaztion
@@ -354,134 +423,204 @@ end
         saveRatio=false
     )
 
-    Θ = div(qmc.K,2)
-    θ = div(system.L,2)
-
     φ₀_up = trial_wf_free(system, 1, T)
     φ₀ = [φ₀_up, copy(φ₀_up)]
-
-    extsys = ExtendedSystem(system, collect(1:8), subsysOrdering=false)
-    sampler = EtgSampler(extsys, qmc)
 
     ### test the regular sweep ###
     walker = HubbardWalker(system, qmc, φ₀)
     # thermalize the walker without saving ratios
     sweep!(system, qmc_nosave, walker, loop_number=10)
 
-    ## Test θ -> 2θ ##
-    auxfield = copy(walker.auxfield)
-    sweep!_symmetric(system, qmc, walker, collect(Θ+1:2Θ))
-    # pick a random point in time [θ:2θ]
-    idx_t = rand(θ+1:2θ)
-    idx_x = rand(1:system.V)
-    idx = (idx_t-θ-1)*system.V + idx_x
-    @. auxfield[:, θ+1:idx_t-1] = walker.auxfield[:, θ+1:idx_t-1]
-    @. auxfield[1:idx_x-1, idx_t] = walker.auxfield[1:idx_x-1, idx_t]
-    r = compute_ratio_regular(system, qmc, auxfield, (idx_x, idx_t), walker.φ₀)
-    @test r ≈ walker.tmp_r[idx]
-
-    ## Test 2θ -> Θ ##
-    auxfield = copy(walker.auxfield)
-    sweep!_symmetric(system, qmc, walker, collect(2Θ:-1:Θ+1))
-    # pick a random point in time [θ:2θ]
-    idx_t = rand(θ+1:2θ)
-    idx_x = rand(1:system.V)
-    idx = (2θ-idx_t)*system.V + idx_x + θ*system.V
-    @. auxfield[:, idx_t+1:2θ] = walker.auxfield[:, idx_t+1:2θ]
-    @. auxfield[1:idx_x-1, idx_t] = walker.auxfield[1:idx_x-1, idx_t]
-    r = compute_ratio_regular(system, qmc, auxfield, (idx_x, idx_t), walker.φ₀)
-    @test r ≈ walker.tmp_r[idx]
-
-    ## Test Θ -> 0 ##
-    auxfield = copy(walker.auxfield)
-    sweep!_symmetric(system, qmc, walker, collect(Θ:-1:1))
-    # pick a random point in time [1:Θ]
-    idx_t = rand(1:θ)
-    idx_x = rand(1:system.V)
-    idx = (θ-idx_t)*system.V + idx_x + 2*θ*system.V
-    @. auxfield[:, θ:-1:idx_t+1] = walker.auxfield[:, θ:-1:idx_t+1]
-    @. auxfield[1:idx_x-1, idx_t] = walker.auxfield[1:idx_x-1, idx_t]
-    r = compute_ratio_regular(system, qmc, auxfield, (idx_x, idx_t), walker.φ₀)
-    @test r ≈ walker.tmp_r[idx]
-
-    ## Test 0 -> Θ ##
-    auxfield = copy(walker.auxfield)
-    sweep!_symmetric(system, qmc, walker, collect(1:Θ))
-    # pick a random point in time [1:Θ]
-    idx_t = rand(1:θ)
-    idx_x = rand(1:system.V)
-    idx = (idx_t-1)*system.V + idx_x + 3*θ*system.V
-    @. auxfield[:, 1:idx_t-1] = walker.auxfield[:, 1:idx_t-1]
-    @. auxfield[1:idx_x-1, idx_t] = walker.auxfield[1:idx_x-1, idx_t]
-    r = compute_ratio_regular(system, qmc, auxfield, (idx_x, idx_t), walker.φ₀)
-    @test r ≈ walker.tmp_r[idx]
+    r, idx = test_regular_sweep(system, qmc, walker)
+    @test r[1] ≈ walker.tmp_r[idx[1]]
+    @test r[2] ≈ walker.tmp_r[idx[2]]
+    @test r[3] ≈ walker.tmp_r[idx[3]]
+    @test r[4] ≈ walker.tmp_r[idx[4]]
 
     ### test the replica sweep ###
+    extsys = ExtendedSystem(system, collect(1:8), subsysOrdering=false)
+
     walker1 = HubbardWalker(system, qmc, φ₀)
     walker2 = HubbardWalker(system, qmc, φ₀)
     replica = Replica(extsys, walker1, walker2)
     sweep!(system, qmc_nosave, replica, walker1, 1, loop_number=10, jumpReplica=true)
     sweep!(system, qmc_nosave, replica, walker2, 2, loop_number=10, jumpReplica=true)
 
-    ### test the first replica in the forward direction ###
-    auxfield = copy(walker1.auxfield)
-    sweep!_symmetric(system, qmc, replica, walker1, 1, collect(Θ+1:2Θ))
+    r, idx = test_replica_sweep(extsys, qmc, replica)
+    @test r[1] ≈ walker1.tmp_r[idx[1]]
+    @test r[2] ≈ walker1.tmp_r[idx[2]]
+    @test r[3] ≈ walker2.tmp_r[idx[3]]
+    @test r[4] ≈ walker2.tmp_r[idx[4]]
 
-    # pick a random point in time [θ:2θ]
-    idx_t = rand(θ+1:2θ)
-    idx_x = rand(1:system.V)
-    idx = (idx_t-θ-1)*system.V + idx_x
-    @. auxfield[:, θ+1:idx_t-1] = walker1.auxfield[:, θ+1:idx_t-1]
-    @. auxfield[1:idx_x-1, idx_t] = walker1.auxfield[1:idx_x-1, idx_t]
-    r = compute_ratio_replica(extsys, qmc, auxfield, (idx_x, idx_t), walker2, ridx=1)
-    @test r ≈ walker1.tmp_r[idx]
+    ##### Attractive 2D Hubbard Model with Spin Decomposition #####
+    Lx, Ly = 4, 4
+    T = hopping_matrix_Hubbard_2d(Lx, Ly, 1.0)
 
-    ### test the first replica in the backward direction ###
-    auxfield = copy(walker1.auxfield)
-    sweep!_symmetric(system, qmc, replica, walker1, 1, collect(Θ:-1:1))
-    # pick a random point in time [θ:2θ]
-    idx_t = rand(1:θ)
-    idx_x = rand(1:system.V)
-    idx = (θ - idx_t)*system.V + idx_x + div(system.V*system.L,2)
-    @. auxfield[:, idx_t+1:θ] = walker1.auxfield[:, idx_t+1:θ]
-    @. auxfield[1:idx_x-1, idx_t] = walker1.auxfield[1:idx_x-1, idx_t]
-    r = compute_ratio_replica(extsys, qmc, auxfield, (idx_x, idx_t), walker2, ridx=1)
-    @test r ≈ walker1.tmp_r[idx]
+    system = GenericHubbard(
+        # (Nx, Ny), (N_up, N_dn)
+        (Lx, Ly, 1), (7, 7),
+        # t, U
+        T, -4.0,
+        # μ
+        0.0,
+        # β, L
+        16.0, 160,
+        # data type of the system
+        sys_type=ComplexF64,
+        # if use charge decomposition
+        useChargeHST=false,
+        # if use first-order Trotteriaztion
+        useFirstOrderTrotter=false
+    )
 
-    ### switch to the second replica and perform the same test ###
-    jump_replica!(replica, 1)
+    qmc = QMC(
+        system,
+        # number of warm-ups, samples and measurement interval
+        500, 2000, 10,
+        # stablization and update interval
+        5, 5,
+        # if force the spin symmetry
+        forceSymmetry=true,
+        # debugging flag
+        saveRatio=true
+    )
 
-    ## forward direction ##
-    auxfield = copy(walker2.auxfield)
-    sweep!_symmetric(system, qmc, replica, walker2, 2, collect(Θ+1:2Θ))
+    qmc_nosave = QMC(
+        system,
+        # number of warm-ups, samples and measurement interval
+        500, 2000, 10,
+        # stablization and update interval
+        5, 5,
+        # if force the spin symmetry
+        forceSymmetry=true,
+        # debugging flag
+        saveRatio=false
+    )
 
-    # pick a random point in time [θ:2θ]
-    idx_t = rand(θ+1:2θ)
-    idx_x = rand(1:system.V)
-    idx = (idx_t-θ-1)*system.V + idx_x
-    @. auxfield[:, θ+1:idx_t-1] = walker2.auxfield[:, θ+1:idx_t-1]
-    @. auxfield[1:idx_x-1, idx_t] = walker2.auxfield[1:idx_x-1, idx_t]
-    r = compute_ratio_replica(extsys, qmc, auxfield, (idx_x, idx_t), walker1, ridx=2)
-    @test r ≈ walker2.tmp_r[idx]
+    φ₀_up = trial_wf_free(system, 1, T)
+    φ₀ = [φ₀_up, copy(φ₀_up)]
 
-    ## backward direction ##
-    auxfield = copy(walker2.auxfield)
-    sweep!_symmetric(system, qmc, replica, walker2, 2, collect(Θ:-1:1))
-    # pick a random point in time [θ:2θ]
-    idx_t = rand(1:θ)
-    idx_x = rand(1:system.V)
-    idx = (θ - idx_t)*system.V + idx_x + div(system.V*system.L,2)
-    @. auxfield[:, idx_t+1:θ] = walker2.auxfield[:, idx_t+1:θ]
-    @. auxfield[1:idx_x-1, idx_t] = walker2.auxfield[1:idx_x-1, idx_t]
-    r = compute_ratio_replica(extsys, qmc, auxfield, (idx_x, idx_t), walker1, ridx=2)
-    @test r ≈ walker2.tmp_r[idx]
+    ### test the regular sweep ###
+    walker = HubbardWalker(system, qmc, φ₀)
+    # thermalize the walker without saving ratios
+    sweep!(system, qmc_nosave, walker, loop_number=10)
+
+    r, idx = test_regular_sweep(system, qmc, walker)
+    @test r[1] ≈ walker.tmp_r[idx[1]]
+    @test r[2] ≈ walker.tmp_r[idx[2]]
+    @test r[3] ≈ walker.tmp_r[idx[3]]
+    @test r[4] ≈ walker.tmp_r[idx[4]]
+
+    ### test the replica sweep ###
+    extsys = ExtendedSystem(system, collect(1:8), subsysOrdering=false)
+
+    walker1 = HubbardWalker(system, qmc, φ₀)
+    walker2 = HubbardWalker(system, qmc, φ₀)
+    replica = Replica(extsys, walker1, walker2)
+    sweep!(system, qmc_nosave, replica, walker1, 1, loop_number=10, jumpReplica=true)
+    sweep!(system, qmc_nosave, replica, walker2, 2, loop_number=10, jumpReplica=true)
+
+    r, idx = test_replica_sweep(extsys, qmc, replica)
+    @test r[1] ≈ walker1.tmp_r[idx[1]]
+    @test r[2] ≈ walker1.tmp_r[idx[2]]
+    @test r[3] ≈ walker2.tmp_r[idx[3]]
+    @test r[4] ≈ walker2.tmp_r[idx[4]]
+
+    ##### Repulsive 2D Hubbard Model with Charge Decomposition #####
+    Lx, Ly = 4, 4
+    T = hopping_matrix_Hubbard_2d(Lx, Ly, 1.0)
+
+    system = GenericHubbard(
+        # (Nx, Ny), (N_up, N_dn)
+        (Lx, Ly, 1), (8, 8),
+        # t, U
+        T, 4.0,
+        # μ
+        0.0,
+        # β, L
+        16.0, 160,
+        # data type of the system
+        sys_type=ComplexF64,
+        # if use charge decomposition
+        useChargeHST=true,
+        # if use first-order Trotteriaztion
+        useFirstOrderTrotter=false
+    )
+
+    qmc = QMC(
+        system,
+        # number of warm-ups, samples and measurement interval
+        500, 2000, 10,
+        # stablization and update interval
+        5, 5,
+        # if force the spin symmetry
+        forceSymmetry=false,
+        # debugging flag
+        saveRatio=true
+    )
+
+    qmc_nosave = QMC(
+        system,
+        # number of warm-ups, samples and measurement interval
+        500, 2000, 10,
+        # stablization and update interval
+        5, 5,
+        # if force the spin symmetry
+        forceSymmetry=false,
+        # debugging flag
+        saveRatio=false
+    )
+
+    φ₀_up = trial_wf_free(system, 1, T)
+    φ₀ = [φ₀_up, copy(φ₀_up)]
+
+    ### test the regular sweep ###
+    walker = HubbardWalker(system, qmc, φ₀)
+    # thermalize the walker without saving ratios
+    sweep!(system, qmc_nosave, walker, loop_number=10)
+
+    r, idx = test_regular_sweep(system, qmc, walker)
+    @test r[1] ≈ walker.tmp_r[idx[1]]
+    @test r[2] ≈ walker.tmp_r[idx[2]]
+    @test r[3] ≈ walker.tmp_r[idx[3]]
+    @test r[4] ≈ walker.tmp_r[idx[4]]
+
+    ### test the replica sweep ###
+    extsys = ExtendedSystem(system, collect(1:8), subsysOrdering=false)
+
+    walker1 = HubbardWalker(system, qmc, φ₀)
+    walker2 = HubbardWalker(system, qmc, φ₀)
+    replica = Replica(extsys, walker1, walker2)
+    sweep!(system, qmc_nosave, replica, walker1, 1, loop_number=10, jumpReplica=true)
+    sweep!(system, qmc_nosave, replica, walker2, 2, loop_number=10, jumpReplica=true)
+
+    r, idx = test_replica_sweep(extsys, qmc, replica)
+    @test r[1] ≈ walker1.tmp_r[idx[1]]
+    @test r[2] ≈ walker1.tmp_r[idx[2]]
+    @test r[3] ≈ walker2.tmp_r[idx[3]]
+    @test r[4] ≈ walker2.tmp_r[idx[4]]
+
+    ### test the incremental replica sweep ###
+    walker1 = HubbardWalker(system, qmc, φ₀)
+    walker2 = HubbardWalker(system, qmc, φ₀)
+    # a random thermaldynamic integration variable
+    λₖ = rand()
+    replica = Replica(extsys, walker1, walker2, λₖ=λₖ)
+    sweep!(system, qmc_nosave, replica, walker1, 1, loop_number=10, jumpReplica=true)
+    sweep!(system, qmc_nosave, replica, walker2, 2, loop_number=10, jumpReplica=true)
+
+    r, idx = test_replica_sweep(extsys, qmc, replica, λₖ=λₖ)
+    @test r[1] ≈ walker1.tmp_r[idx[1]]
+    @test r[2] ≈ walker1.tmp_r[idx[2]]
+    @test r[3] ≈ walker2.tmp_r[idx[3]]
+    @test r[4] ≈ walker2.tmp_r[idx[4]]
 end
 
 # subsystem sampling test
 @testset "SwapQMC_Subsys" begin
     ##### Attractive 2D Hubbard Model #####
     Lx, Ly = 4, 4
-    T = hopping_matrix_Hubbard_2D(Lx, Ly, 1.0)
+    T = hopping_matrix_Hubbard_2d(Lx, Ly, 1.0)
 
     system = GenericHubbard(
         # (Nx, Ny), (N_up, N_dn)
