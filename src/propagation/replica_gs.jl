@@ -65,7 +65,7 @@ end
 function local_update!_symmetric(
     σ::AbstractArray{Int}, j::Int, l::Int, ridx::Int, 
     system::Hubbard, walker::HubbardWalker, replica::Replica;
-    direction::Int = 1,
+    direction::Int = 1, forceSymmetry::Bool = false,
     useHeatbath::Bool = true, saveRatio::Bool = true
 )
     α = walker.α
@@ -78,7 +78,7 @@ function local_update!_symmetric(
     # compute ratios of determinants through G
     r, γ, ρ = compute_Metropolis_ratio(
                 system, replica, walker, α[1, σj], j, ridx,
-                direction=direction
+                direction=direction, forceSymmetry=forceSymmetry
             )
     saveRatio && push!(walker.tmp_r, r)
     # accept ratio
@@ -147,6 +147,7 @@ function update_cluster!_symmetric(
             local_update!_symmetric(σ, j, l, ridx, 
                                    system, walker, replica,
                                    direction=direction,
+                                   forceSymmetry=qmc.forceSymmetry,
                                    saveRatio=qmc.saveRatio,
                                    useHeatbath=qmc.useHeatbath
                                 )

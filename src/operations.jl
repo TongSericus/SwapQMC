@@ -283,7 +283,7 @@ function compute_Metropolis_ratio(
     system::System,
     replica::Replica{W, T}, walker::W,
     α::Ta, sidx::Int, ridx::Int;
-    direction::Int = 1
+    direction::Int = 1, forceSymmetry::Bool = false
 ) where {W, T, Ta}
 
     # set alias
@@ -291,6 +291,7 @@ function compute_Metropolis_ratio(
     GA⁻¹ = replica.GA⁻¹
     a = replica.a
     b = replica.b
+    λₖ = replica.λₖ
     Gτ = walker.G[1][sidx, sidx]
 
     # direction=2 -> back propagation
@@ -344,13 +345,17 @@ function compute_Metropolis_ratio(
             end
     end
     Γ = transpose(a) * b
+    
+    # regular DQMC ratio
+    d = 1 + α * (1 - Gτ)
+    # ratio of detgA (Grover matrix) with a thermaldynamic integration variable (λₖ)
+    dᵧ = (1 - α*Γ/d)^λₖ
+    ## accept ratio
+    r = isreal(α) ? (d*dᵧ)^2 : (d*dᵧ)^2 / (α+1)
+    forceSymmetry && (r = (d*dᵧ) * conj(d*dᵧ))
 
-    d = 1 + α * (1 - Gτ - Γ)
-    # accept ratio
-    r = isreal(α) ? d^2 : d^2 / (α + 1)
-
-    γ = α / (d + α * Γ)
-    ρ = α / d
+    γ = α / d
+    ρ = α / (d - α * Γ)
 
     return r, γ, ρ
 end

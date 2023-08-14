@@ -44,32 +44,24 @@ function trial_wf_HF(system::GenericHubbard; ϵ::Float64=1e-5)
 
     # initialize ⟨nᵢ↑⟩ and ⟨nᵢ↓⟩
     nᵢ₊ = [system.N[1] / system.V for _ in 1:system.V]
-    nᵢ₋ = [system.N[2] / system.V for _ in 1:system.V]
     # initialize Hamiltonian
     H₊ = copy(T)
     H₊[diagind(H₊)] = U * nᵢ₊
-    H₋ = copy(T)
-    H₋[diagind(H₋)] = U * nᵢ₋
 
     # perform self-consistent iterations on ⟨nᵢ↑⟩ and ⟨nᵢ↓⟩
     nᵢ₊′ = HF_wf_solver(H₊, system.N[1])
-    nᵢ₋′ = HF_wf_solver(H₋, system.N[2])
 
-    while norm(nᵢ₊′ - nᵢ₊) > ϵ && norm(nᵢ₋′ - nᵢ₋) > ϵ
+    while norm(nᵢ₊′ - nᵢ₊) > ϵ
         copyto!(nᵢ₊, nᵢ₊′)
         H₊[diagind(H₊)] = U * nᵢ₊
-        copyto!(nᵢ₋, nᵢ₋′)
-        H₋[diagind(H₋)] = U * nᵢ₋
 
         nᵢ₊′ = HF_wf_solver(H₊, system.N[1])
-        nᵢ₋′ = HF_wf_solver(H₋, system.N[2])
     end
 
     H₊[diagind(H₊)] = U * nᵢ₊
-    H₋[diagind(H₋)] = U * nᵢ₋
 
     ϕ₊ = HF_wf_solver(H₊, system.N[1], returnWF=true)
-    ϕ₋ = HF_wf_solver(H₋, system.N[2], returnWF=true)
+    ϕ₋ = -copy(ϕ₊)
 
     return [ϕ₊, ϕ₋]
 end

@@ -28,10 +28,13 @@ struct Replica{W, T, E}
     b::Vector{T}
     t::Vector{T}    # a temporal vector for storage
 
+    # thermaldynamic integration variable for incremental algorithm
+    λₖ::Float64
+
     # LDR Workspace
     ws::LDRWorkspace{T, E}
 
-    function Replica(extsys::ExtendedSystem, walker1::W, walker2::W) where W
+    function Replica(extsys::ExtendedSystem, walker1::W, walker2::W; λₖ::Float64 = 1.0) where W
 
         T = eltype(walker1.G[1])
         LA = extsys.LA
@@ -55,7 +58,7 @@ struct Replica{W, T, E}
             G₀1, G₀2, 
             GA⁻¹, Ref(logdetGA), Ref(sgnlogdetGA), 
             Im2GA, 
-            a, b, t, ws
+            a, b, t, λₖ, ws
         )
     end
 end
