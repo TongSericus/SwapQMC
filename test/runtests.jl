@@ -554,7 +554,7 @@ end
         # stablization and update interval
         5, 5,
         # if force the spin symmetry
-        forceSymmetry=false,
+        forceSymmetry=true,
         # debugging flag
         saveRatio=true
     )
@@ -566,7 +566,7 @@ end
         # stablization and update interval
         5, 5,
         # if force the spin symmetry
-        forceSymmetry=false,
+        forceSymmetry=true,
         # debugging flag
         saveRatio=false
     )
@@ -610,6 +610,151 @@ end
     sweep!(system, qmc_nosave, replica, walker2, 2, loop_number=10, jumpReplica=true)
 
     r, idx = test_replica_sweep(extsys, qmc, replica, λₖ=λₖ)
+    @test r[1] ≈ walker1.tmp_r[idx[1]]
+    @test r[2] ≈ walker1.tmp_r[idx[2]]
+    @test r[3] ≈ walker2.tmp_r[idx[3]]
+    @test r[4] ≈ walker2.tmp_r[idx[4]]
+end
+
+# ground state test with Hartree Fock trial wavefunction
+@testset "SwapQMC_GS_HFwavefunc" begin
+    ##### Attractive 2D Hubbard Model with Charge Decomposition #####
+    Lx, Ly = 4, 4
+    T = hopping_matrix_Hubbard_2d(Lx, Ly, 1.0)
+
+    system = GenericHubbard(
+        # (Nx, Ny), (N_up, N_dn)
+        (Lx, Ly, 1), (7, 7),
+        # t, U
+        T, -4.0,
+        # μ
+        0.0,
+        # β, L
+        16.0, 160,
+        # data type of the system
+        sys_type=Float64,
+        # if use charge decomposition
+        useChargeHST=true,
+        # if use first-order Trotteriaztion
+        useFirstOrderTrotter=false
+    )
+
+    qmc = QMC(
+        system,
+        # number of warm-ups, samples and measurement interval
+        500, 2000, 10,
+        # stablization and update interval
+        5, 5,
+        # debugging flag
+        saveRatio=true
+    )
+
+    qmc_nosave = QMC(
+        system,
+        # number of warm-ups, samples and measurement interval
+        500, 2000, 10,
+        # stablization and update interval
+        5, 5,
+        # debugging flag
+        saveRatio=false
+    )
+
+    φ₀ = trial_wf_HF(system, ϵ=1e-10)
+
+    ### test the regular sweep ###
+    walker = HubbardWalker(system, qmc, φ₀)
+    # thermalize the walker without saving ratios
+    sweep!(system, qmc_nosave, walker, loop_number=10)
+
+    r, idx = test_regular_sweep(system, qmc, walker)
+    @test r[1] ≈ walker.tmp_r[idx[1]]
+    @test r[2] ≈ walker.tmp_r[idx[2]]
+    @test r[3] ≈ walker.tmp_r[idx[3]]
+    @test r[4] ≈ walker.tmp_r[idx[4]]
+
+    ### test the replica sweep ###
+    extsys = ExtendedSystem(system, collect(1:8), subsysOrdering=false)
+
+    walker1 = HubbardWalker(system, qmc, φ₀)
+    walker2 = HubbardWalker(system, qmc, φ₀)
+    replica = Replica(extsys, walker1, walker2)
+    sweep!(system, qmc_nosave, replica, walker1, 1, loop_number=10, jumpReplica=true)
+    sweep!(system, qmc_nosave, replica, walker2, 2, loop_number=10, jumpReplica=true)
+
+    r, idx = test_replica_sweep(extsys, qmc, replica)
+    @test r[1] ≈ walker1.tmp_r[idx[1]]
+    @test r[2] ≈ walker1.tmp_r[idx[2]]
+    @test r[3] ≈ walker2.tmp_r[idx[3]]
+    @test r[4] ≈ walker2.tmp_r[idx[4]]
+
+    ##### Attractive 2D Hubbard Model with Spin Decomposition #####
+    Lx, Ly = 4, 4
+    T = hopping_matrix_Hubbard_2d(Lx, Ly, 1.0)
+
+    system = GenericHubbard(
+        # (Nx, Ny), (N_up, N_dn)
+        (Lx, Ly, 1), (7, 7),
+        # t, U
+        T, -4.0,
+        # μ
+        0.0,
+        # β, L
+        16.0, 160,
+        # data type of the system
+        sys_type=ComplexF64,
+        # if use charge decomposition
+        useChargeHST=false,
+        # if use first-order Trotteriaztion
+        useFirstOrderTrotter=false
+    )
+
+    qmc = QMC(
+        system,
+        # number of warm-ups, samples and measurement interval
+        500, 2000, 10,
+        # stablization and update interval
+        5, 5,
+        # if force the spin symmetry
+        forceSymmetry=true,
+        # debugging flag
+        saveRatio=true
+    )
+
+    qmc_nosave = QMC(
+        system,
+        # number of warm-ups, samples and measurement interval
+        500, 2000, 10,
+        # stablization and update interval
+        5, 5,
+        # if force the spin symmetry
+        forceSymmetry=true,
+        # debugging flag
+        saveRatio=false
+    )
+
+    φ₀ = trial_wf_HF(system, ϵ=1e-10)
+
+    ### test the regular sweep ###
+    walker = HubbardWalker(system, qmc, φ₀)
+    # thermalize the walker without saving ratios
+    sweep!(system, qmc_nosave, walker, loop_number=10)
+
+    r, idx = test_regular_sweep(system, qmc, walker)
+    @test r[1] ≈ walker.tmp_r[idx[1]]
+    @test r[2] ≈ walker.tmp_r[idx[2]]
+    @test r[3] ≈ walker.tmp_r[idx[3]]
+    @test r[4] ≈ walker.tmp_r[idx[4]]
+
+    ### test the replica sweep ###
+    extsys = ExtendedSystem(system, collect(1:8), subsysOrdering=false)
+
+    walker1 = HubbardWalker(system, qmc, φ₀)
+    walker2 = HubbardWalker(system, qmc, φ₀)
+    replica = Replica(extsys, walker1, walker2)
+    sweep!(system, qmc_nosave, replica, walker1, 1, loop_number=10, jumpReplica=true)
+    sweep!(system, qmc_nosave, replica, walker2, 2, loop_number=10, jumpReplica=true)
+
+    r, idx = test_replica_sweep(extsys, qmc, replica)
     @test r[1] ≈ walker1.tmp_r[idx[1]]
     @test r[2] ≈ walker1.tmp_r[idx[2]]
     @test r[3] ≈ walker2.tmp_r[idx[3]]
