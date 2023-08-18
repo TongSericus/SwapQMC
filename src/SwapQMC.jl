@@ -22,7 +22,8 @@ module SwapQMC
     
     # random walker and replica at finite and zero temperature
     export HubbardGCWalker, HubbardGCSwapper, Replica
-    export trial_wf_free, trial_wf_HF, HubbardWalker
+    export trial_wf_free, trial_wf_HF, trial_wf_bcs
+    export HubbardWalker
     export HubbardSubsysWalker
     include("./walker.jl")
     include("./trial_wavefunctions.jl")
