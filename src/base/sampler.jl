@@ -57,10 +57,11 @@ function EtgSampler(extsys::ExtendedSystem, qmc::QMC; nsamples=qmc.nsamples)
 
     p = zeros(qmc.nsamples)
 
-    L = min(length(Aidx), extsys.system.N[1])
+    L = length(Aidx)
+    Nₐ = min(L, extsys.system.N[1]) # maximum possible number of particles
     Pn₊ = zeros(ComplexF64, L+1, nsamples)
     Pn₋ = zeros(ComplexF64, L+1, nsamples)
-    tmpPn = zeros(ComplexF64, L+1, L)
+    tmpPn = zeros(ComplexF64, L+1, Nₐ)
 
     data = EtgData(extsys)
     wsA = ldr_workspace(data.HA₁)

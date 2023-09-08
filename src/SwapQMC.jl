@@ -24,7 +24,6 @@ module SwapQMC
     export HubbardGCWalker, HubbardGCSwapper, Replica
     export trial_wf_free, trial_wf_HF, trial_wf_bcs
     export HubbardWalker
-    export HubbardSubsysWalker
     include("./walker.jl")
     include("./trial_wavefunctions.jl")
     include("./walker_gs.jl")
@@ -37,7 +36,6 @@ module SwapQMC
     # MC operations
     include("./operations.jl")
     include("./operations_gs.jl")
-    include("operations_subsys.jl")
     
     # MC propagations
     export sweep!
@@ -47,7 +45,6 @@ module SwapQMC
     export sweep!_symmetric, jump_replica!
     include("./propagation/standard_gs.jl")
     include("./propagation/replica_gs.jl")
-    include("./propagation/standard_subsys.jl")
     # local measurements
     include("./propagation/local_measurements/standard_gs.jl")
     include("./propagation/local_measurements/replica_gs.jl")
