@@ -11,6 +11,7 @@ module SwapQMC
     # system and simulation related quantities, linalg operations
     export System, ExtendedSystem, QMC
     export Hubbard, GenericHubbard
+    include("./base/base_utils.jl")
     include("./base/systems.jl")
     include("./base/qmc_variable.jl")
     include("./base/linalg_RDM.jl")

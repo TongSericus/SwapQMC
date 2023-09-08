@@ -121,3 +121,21 @@ function HubbardWalker(
         tmp_r
     )
 end
+
+### Display Info ###
+Base.summary(walker::GSWalker) = string(
+    TYPE_COLOR,
+    nameof(typeof(walker))
+)
+
+function Base.show(io::IO, walker::HubbardWalker)
+    HStype = walker.α[1] == walker.α[3] ? "charge" : "spin"
+
+    println(io, summary(walker))
+    print(  io, NO_COLOR,   "Data type: ")
+    println(io, TYPE_COLOR, "$(eltype(walker.G[1]))")
+    print(  io, NO_COLOR,   "HS type: ")
+    println(io, TYPE_COLOR, "discrete, $(HStype)")
+    print(  io, NO_COLOR,    "Size: ")
+    print(  io, TYPE_COLOR, "$(size(walker.G[1]))")
+end

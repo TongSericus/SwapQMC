@@ -17,7 +17,7 @@ struct Replica{W, T, E}
 
     # inverse of the Grover matrix
     GA⁻¹::Matrix{T}
-    logdetGA::Base.RefValue{Float64}    # note: it's the negative value log(det(GA⁻¹))
+    logdetGA::Base.RefValue{Float64}    # note: it's the negative value log(detGA⁻¹)
     sgnlogdetGA::Base.RefValue{T}
 
     # constant matrix I - 2*GA
@@ -63,10 +63,24 @@ struct Replica{W, T, E}
     end
 end
 
+### Display Info ###
+Base.summary(replica::Replica) = string(
+    TYPE_COLOR,
+    nameof(typeof(replica))
+)
+
+function Base.show(io::IO, replica::Replica)
+    println(io, summary(replica))
+    print(  io, NO_COLOR,   "Partition size: ")
+    println(io, TYPE_COLOR, "$(length(replica.Aidx))")
+    print(  io, NO_COLOR,   "log(detGA⁻¹): ")
+    println(io, TYPE_COLOR, "$(replica.logdetGA[])")
+end
+
+"""
+    Update the value of det(GA⁻¹)
+"""
 function update!(replica::Replica)
-    """
-        Update the value of det(GA⁻¹)
-    """
     Aidx = replica.Aidx
     G₀1 = replica.walker1.G[1]
     G₀2 = replica.walker2.G[1]

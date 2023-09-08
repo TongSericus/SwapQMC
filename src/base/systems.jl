@@ -90,13 +90,13 @@ struct ExtendedSystem{T}
     Vext::Int64                 # size of the enlarged system
 end
 
-function rearrange!(U::AbstractMatrix, V::AbstractMatrix, Aidx::Vector{Int64}, Bidx::Vector{Int64})
-    """
-        rearrange!(U, V, Aidx, Bidx)
+"""
+    rearrange!(U, V, Aidx, Bidx)
 
-        Rearrange the elements in V by putting elements whose indices are in Aidx into the upper left block
+    Rearrange the elements in V by putting elements whose indices are in Aidx into the upper left block
     of matrix U. Note that U and V should have the same size.
-    """
+"""
+function rearrange!(U::AbstractMatrix, V::AbstractMatrix, Aidx::Vector{Int64}, Bidx::Vector{Int64})
     LA = length(Aidx)
 
     @views copyto!(U[1:LA, 1:LA], V[Aidx, Aidx])
@@ -105,13 +105,13 @@ function rearrange!(U::AbstractMatrix, V::AbstractMatrix, Aidx::Vector{Int64}, B
     @views copyto!(U[LA+1:end, LA+1:end], V[Bidx, Bidx])
 end
 
-function rearrange!(U::AbstractVector, V::AbstractVector, Aidx::Vector{Int64}, Bidx::Vector{Int64})
-    """
-        rearrange!(U, V, Aidx, Bidx)
+"""
+    rearrange!(U, V, Aidx, Bidx)
 
-        Rearrange the elements in V by putting elements whose indices are in Aidx into the upper block
+    Rearrange the elements in V by putting elements whose indices are in Aidx into the upper block
     of vector U. Note that U and V should have the same length.
-    """
+"""
+function rearrange!(U::AbstractVector, V::AbstractVector, Aidx::Vector{Int64}, Bidx::Vector{Int64})
     LA = length(Aidx)
 
     @views copyto!(U[1:LA], V[Aidx])
