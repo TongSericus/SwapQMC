@@ -163,6 +163,8 @@ function Pn2_estimator(
     H = ws.M
     mul!(H, V, U)
     ϵ = eigvals(H)
+    #idx = findall(x -> abs(x)>1e-10, ϵ)
+    #ϵ = sort(ϵ[idx], by=abs)
     ϵ = sort(1 ./ ϵ, by=abs)
 
     # apply Poisson binomial iterator
@@ -196,6 +198,8 @@ function Pn_estimator(
     HA = ws.M
     mul!(HA, dVt, U)
     ϵ = eigvals(HA)
+    idx = findall(x -> abs(1-x)>1e-10, ϵ)
+    ϵ = (1 .- ϵ)[idx]
 
     # compute the eigenvalues of (GA⁻¹ - I)⁻¹
     ϵ = 1 ./ (1 ./ ϵ .- 1)
