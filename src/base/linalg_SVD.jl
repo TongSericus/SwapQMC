@@ -28,7 +28,7 @@ function lmul!_svd(Ul::AbstractMatrix, U::AbstractMatrix, V::LDR{T,E}) where {T,
     
     mul!(Ul, U, V.L)
     rmul_D!(Ul, V.d)
-    L,D,R = svd!(Ul)
+    L,D,R = svd!(Ul, alg = LinearAlgebra.QRIteration())
     mul!(Ul, R', V.R)
 
     return L, D, Ul
@@ -38,7 +38,7 @@ function rmul!_svd(Ur::AbstractMatrix, U::LDR{T,E}, V::AbstractMatrix) where {T,
 
     mul!(Ur, U.R, V)
     lmul_D!(U.d, Ur)
-    L,D,R = svd!(Ur)
+    L,D,R = svd!(Ur, alg = LinearAlgebra.QRIteration())
     mul!(Ur, U.L, L)
 
     return Ur, D, R
