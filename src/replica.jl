@@ -1,99 +1,84 @@
 """
-    Define the replica
-"""
+    Replica{W, T, E}
 
+Defines a replica with the given parameters.
+"""
 struct Replica{W, T, E}
-    # partition
+    ### Partition indices ###
     Aidx::Vector{Int64}
 
-    # two replica walkers
+    ### Two replica walkers ###
     walker1::W
     walker2::W
 
-    ### Temporal Data ###
-    # Green's functions at imaginary time 0
+    ### Allocating Temporal Data ###
+    # Green's functions at imaginary time θ/2
     G₀1::Matrix{T}
     G₀2::Matrix{T}
-
-    # inverse of the Grover matrix
+    ``
+    # Inverse of the Grover matrix
     GA⁻¹::Matrix{T}
     logdetGA::Base.RefValue{Float64}    # note: it's the negative value log(detGA⁻¹)
     sgnlogdetGA::Base.RefValue{T}
 
-    # constant matrix I - 2*GA
+    # Matrix I - 2*GA, where GA is the submatrix of either G₀1 or G₀2, depending on which replica is currently NOT being updated
     Im2GA::Matrix{T}
 
-    # two vectors used in computing the ratio and updating the Grover inverse
+    # Allocating three vectors used in computing the ratio and updating the Grover inverse
     a::Vector{T}
     b::Vector{T}
-    t::Vector{T}    # a temporal vector for storage
+    t::Vector{T}
 
-    # thermaldynamic integration variable for incremental algorithm
+    ### Thermaldynamic integration variable for incremental algorithm ###
     λₖ::Float64
 
-    # LDR Workspace
+    ### LDR Workspace ###
     ws::LDRWorkspace{T, E}
 
-    function Replica(extsys::ExtendedSystem, walker1::W, walker2::W; λₖ::Float64 = 1.0) where W
+    function Replica(extsys::ExtendedSystem, w1::W, w2::W; λₖ::Float64 = 1.0) where W
+        T = eltype(w1.G[1])
 
-        T = eltype(walker1.G[1])
         LA = extsys.LA
         Aidx = extsys.Aidx
-
         GA⁻¹ = zeros(T, LA, LA)
         ws = ldr_workspace(GA⁻¹)
-        G₀1 = copy(walker1.G[1])
-        G₀2 = copy(walker2.G[1])
-        @views logdetGA, sgnlogdetGA = inv_Grover!(GA⁻¹, G₀1[Aidx, Aidx], G₀2[Aidx, Aidx], ws)
+        G₀1, G₀2 = copy(w1.G[1]), copy(w2.G[1])
+        logdetGA, sgnlogdetGA = inv_Grover!(GA⁻¹, G₀1[Aidx, Aidx], G₀2[Aidx, Aidx], ws)
+        a, b, t = zeros(T, LA), zeros(T, LA), zeros(T, LA)
+        Im2GA = I - 2 * G₀2[1:LA, 1:LA]
 
-        a = zeros(T, LA)
-        b = zeros(T, LA)
-        t = zeros(T, LA)
-
-        Im2GA = I - 2 * (@view G₀2[1:LA, 1:LA])
-        
         return new{W, T, Float64}(
             Aidx, 
-            walker1, walker2, 
+            w1, w2, 
             G₀1, G₀2, 
             GA⁻¹, Ref(logdetGA), Ref(sgnlogdetGA), 
-            Im2GA, 
-            a, b, t, λₖ, ws
+            Im2GA, a, b, t, 
+            λₖ, ws
         )
     end
 end
 
 ### Display Info ###
-Base.summary(replica::Replica) = string(
-    TYPE_COLOR,
-    nameof(typeof(replica))
-)
+Base.summary(r::Replica) = string(nameof(typeof(r)))
 
-function Base.show(io::IO, replica::Replica)
-    println(io, summary(replica))
-    print(  io, NO_COLOR,   "Partition size: ")
-    println(io, TYPE_COLOR, "$(length(replica.Aidx))")
-    print(  io, NO_COLOR,   "log(detGA⁻¹): ")
-    println(io, TYPE_COLOR, "$(replica.logdetGA[])")
+function Base.show(io::IO, r::Replica)
+    println(io, TYPE_COLOR, Base.summary(r), NO_COLOR)
+    println(io, "Partition size: ", TYPE_COLOR, length(r.Aidx), NO_COLOR)
+    println(io, "log(detGA⁻¹): ", TYPE_COLOR, r.logdetGA[], NO_COLOR)
 end
 
 """
-    Update the value of det(GA⁻¹)
+    update!(r::Replica)
+
+Updates the value of det(GA⁻¹) in the provided replica.
 """
-function update!(replica::Replica)
-    Aidx = replica.Aidx
-    G₀1 = replica.walker1.G[1]
-    G₀2 = replica.walker2.G[1]
-    GA⁻¹ = replica.GA⁻¹
-    ws = replica.ws
+function update!(r::Replica)
+    Aidx, G₀1, G₀2, GA⁻¹, ws = r.Aidx, r.walker1.G[1], r.walker2.G[1], r.GA⁻¹, r.ws
+    logdetGA, sgnlogdetGA = inv_Grover!(GA⁻¹, G₀1[Aidx, Aidx], G₀2[Aidx, Aidx], ws)
+    r.logdetGA[] = logdetGA
+    r.sgnlogdetGA[] = sgnlogdetGA
+    copyto!(r.G₀1, G₀1)
+    copyto!(r.G₀2, G₀2)
 
-    @views logdetGA, sgnlogdetGA = inv_Grover!(GA⁻¹, G₀1[Aidx, Aidx], G₀2[Aidx, Aidx], ws)
-
-    replica.logdetGA[] = logdetGA
-    replica.sgnlogdetGA[] = sgnlogdetGA
-
-    copyto!(replica.G₀1, G₀1)
-    copyto!(replica.G₀2, G₀2)
-
-    return nothing
+    return r
 end
