@@ -46,9 +46,6 @@ module SwapQMC
     export sweep!_symmetric, jump_replica!
     include("./propagation/standard_gs.jl")
     include("./propagation/replica_gs.jl")
-    # local measurements
-    include("./propagation/local_measurements/standard_gs.jl")
-    include("./propagation/local_measurements/replica_gs.jl")
     
     export TunableHubbard, TunableHubbardWalker,
            MuTuner, dynamical_tuning
