@@ -13,8 +13,7 @@ function measure_expS2!(
         update!(replica)
         p[s] = min(1, exp(-2 * replica.logdetGA[]))
 
-        forwardMeasurement && sampler.s_counter[] += 1
-        sampler.m_counter[] = 0
+        forwardMeasurement && (sampler.s_counter[] += 1)
 
         return nothing
     end
@@ -23,8 +22,7 @@ function measure_expS2!(
 
     p[s] = min(1, exp(2 * replica.logdetGA[]))
     
-    forwardMeasurement && sampler.s_counter[] += 1
-    sampler.m_counter[] = 0
+    forwardMeasurement && (sampler.s_counter[] += 1)
 
     return nothing
 end
@@ -43,8 +41,7 @@ function measure_Pn!(sampler::EtgSampler, walker::HubbardWalker; forwardMeasurem
     Pn_estimator(G[2], sampler.Aidx, wsA, tmpPn=tmpPn)
     @views copyto!(Pn₋[:, s], tmpPn[:, end])
 
-    forwardMeasurement && sampler.s_counter[] += 1
-    sampler.m_counter[] = 0
+    forwardMeasurement && (sampler.s_counter[] += 1)
 
     return nothing
 end
@@ -61,8 +58,7 @@ function measure_Pn2!(
     @views copyto!(Pn2₊[:, s], tmpPn[:, Np])
     @views copyto!(Pn2₋[:, s], conj(tmpPn[:, Np]))
 
-    forwardMeasurement && sampler.s_counter[] += 1
-    sampler.m_counter[] = 0
+    forwardMeasurement && (sampler.s_counter[] += 1)
 
     return nothing
 end

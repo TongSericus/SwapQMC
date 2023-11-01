@@ -35,7 +35,6 @@ struct EtgSampler{T, E}
     
     # counters
     s_counter::Base.RefValue{Int} # count the number of collected samples
-    m_counter::Base.RefValue{Int} # count the measurement interval
 
     # observables
     p::Vector{Float64}          # transition probability
