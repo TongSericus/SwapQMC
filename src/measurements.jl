@@ -2,21 +2,18 @@
     Entanglement Entropy Measurements
 """
 
-function measure_replica!(
+function measure_expS2!(
     sampler::EtgSampler, replica::Replica; 
-    direction::Int = 2, localMeasurement::Bool = false
+    direction::Int = 2, forwardMeasurement::Bool = false
 )
     s = sampler.s_counter[]
     p = sampler.p
-    Pn2₊ = sampler.Pn₊
-    Pn2₋ = sampler.Pn₋
-    tmpPn = sampler.tmpPn
 
     direction == 1 && begin
         update!(replica)
         p[s] = min(1, exp(-2 * replica.logdetGA[]))
 
-        sampler.s_counter[] += 1
+        forwardMeasurement && sampler.s_counter[] += 1
         sampler.m_counter[] = 0
 
         return nothing
@@ -25,17 +22,14 @@ function measure_replica!(
     localMeasurement && update!(replica)
 
     p[s] = min(1, exp(2 * replica.logdetGA[]))
-    Pn2_estimator(replica, tmpPn=tmpPn)
-    @views copyto!(Pn2₊[:, s], tmpPn[:, end])
-    @views copyto!(Pn2₋[:, s], conj(tmpPn[:, end]))
     
-    sampler.s_counter[] += 1
+    forwardMeasurement && sampler.s_counter[] += 1
     sampler.m_counter[] = 0
 
     return nothing
 end
 
-function measure_Pn!(sampler::EtgSampler, walker::HubbardWalker)
+function measure_Pn!(sampler::EtgSampler, walker::HubbardWalker; forwardMeasurement::Bool = false)
     s = sampler.s_counter[]
     Pn₊ = sampler.Pn₊
     Pn₋ = sampler.Pn₋
@@ -49,7 +43,25 @@ function measure_Pn!(sampler::EtgSampler, walker::HubbardWalker)
     Pn_estimator(G[2], sampler.Aidx, wsA, tmpPn=tmpPn)
     @views copyto!(Pn₋[:, s], tmpPn[:, end])
 
-    sampler.s_counter[] += 1
+    forwardMeasurement && sampler.s_counter[] += 1
+    sampler.m_counter[] = 0
+
+    return nothing
+end
+
+function measure_Pn2!(
+    sampler::EtgSampler, replica::Replica; 
+    Np::Int = size(replica.GA⁻¹,2), forwardMeasurement::Bool = false
+)
+    s = sampler.s_counter[]
+    Pn2₊ = sampler.Pn₊
+    Pn2₋ = sampler.Pn₋
+
+    Pn2_estimator(replica, tmpPn=sampler.tmpPn)
+    @views copyto!(Pn2₊[:, s], tmpPn[:, Np])
+    @views copyto!(Pn2₋[:, s], conj(tmpPn[:, Np]))
+
+    forwardMeasurement && sampler.s_counter[] += 1
     sampler.m_counter[] = 0
 
     return nothing

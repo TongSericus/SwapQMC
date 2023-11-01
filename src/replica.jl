@@ -15,7 +15,7 @@ struct Replica{W, T, E}
     # Green's functions at imaginary time θ/2
     G₀1::Matrix{T}
     G₀2::Matrix{T}
-    ``
+    
     # Inverse of the Grover matrix
     GA⁻¹::Matrix{T}
     logdetGA::Base.RefValue{Float64}    # note: it's the negative value log(detGA⁻¹)
