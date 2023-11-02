@@ -18,8 +18,6 @@ function measure_expS2!(
         return nothing
     end
 
-    localMeasurement && update!(replica)
-
     p[s] = min(1, exp(2 * replica.logdetGA[]))
     
     forwardMeasurement && (sampler.s_counter[] += 1)
@@ -31,15 +29,14 @@ function measure_Pn!(sampler::EtgSampler, walker::HubbardWalker; forwardMeasurem
     s = sampler.s_counter[]
     Pn₊ = sampler.Pn₊
     Pn₋ = sampler.Pn₋
-    tmpPn = sampler.tmpPn
 
     G = walker.G
     wsA = sampler.wsA
 
-    Pn_estimator(G[1], sampler.Aidx, wsA, tmpPn=tmpPn)
-    @views copyto!(Pn₊[:, s], tmpPn[:, end])
-    Pn_estimator(G[2], sampler.Aidx, wsA, tmpPn=tmpPn)
-    @views copyto!(Pn₋[:, s], tmpPn[:, end])
+    Pn_estimator(G[1], sampler.Aidx, wsA, tmpPn=sampler.tmpPn)
+    @views copyto!(Pn₊[:, s], sampler.tmpPn[:, end])
+    Pn_estimator(G[2], sampler.Aidx, wsA, tmpPn=sampler.tmpPn)
+    @views copyto!(Pn₋[:, s], sampler.tmpPn[:, end])
 
     forwardMeasurement && (sampler.s_counter[] += 1)
 
@@ -55,8 +52,8 @@ function measure_Pn2!(
     Pn2₋ = sampler.Pn₋
 
     Pn2_estimator(replica, tmpPn=sampler.tmpPn)
-    @views copyto!(Pn2₊[:, s], tmpPn[:, Np])
-    @views copyto!(Pn2₋[:, s], conj(tmpPn[:, Np]))
+    @views copyto!(Pn2₊[:, s], sampler.tmpPn[:, Np])
+    @views copyto!(Pn2₋[:, s], conj(sampler.tmpPn[:, Np]))
 
     forwardMeasurement && (sampler.s_counter[] += 1)
 
@@ -171,8 +168,8 @@ function Pn2_estimator(
     H = ws.M
     mul!(H, V, U)
     ϵ = eigvals(H)
-    #idx = findall(x -> abs(x)>1e-10, ϵ)
-    #ϵ = sort(ϵ[idx], by=abs)
+    idx = findall(x -> abs(x)>1e-10, ϵ)
+    ϵ = sort(ϵ[idx], by=abs)
     ϵ = sort(1 ./ ϵ, by=abs)
 
     # apply Poisson binomial iterator
@@ -217,33 +214,4 @@ function Pn_estimator(
     poissbino(ϵ, P=tmpPn)
 
     return tmpPn
-end
-
-"""
-    genfunc_estimator(...)
-
-    Estimating the generating function of the probability distribution
-"""
-function genfunc_estimator(
-    G::AbstractMatrix{T}, Aidx::Vector{Int}, ws::LDRWorkspace{T, E};
-    # number of quadrature points
-    Nq::Int = length(Aidx) + 1
-) where {T,E}
-    GA = ws.M
-    @views copyto!(GA, G[Aidx, Aidx])
-    GA_svd = svd!(GA, alg = LinearAlgebra.QRIteration())
-    U, d, V = GA_svd
-    
-    Vt = ws.M
-    transpose!(Vt, V)
-    dVt = ws.M′
-    mul!(dVt, Diagonal(d), Vt)
-    HA = ws.M
-    mul!(HA, dVt, U)
-    ϵ = eigvals(HA, sortby=abs)
-
-    iφ = im * [2 * π * m / Nq for m = 1 : Nq]
-    expiφ = exp.(iφ)
-
-    χ = [prod(1 .+ (expiφ[k] - 1) .* ϵ) for k in 1:Nq]
 end

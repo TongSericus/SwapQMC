@@ -65,5 +65,5 @@ function EtgSampler(extsys::ExtendedSystem, qmc::QMC; nsamples=qmc.nsamples)
     data = EtgData(extsys)
     wsA = ldr_workspace(data.HA₁)
 
-    return EtgSampler(Aidx, x, θ, L, Ref(1), Ref(0), p, Pn₊, Pn₋, data, tmpPn, wsA)
+    return EtgSampler(Aidx, x, θ, L, Ref(1), p, Pn₊, Pn₋, data, tmpPn, wsA)
 end
